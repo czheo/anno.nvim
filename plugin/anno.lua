@@ -15,3 +15,7 @@ end, { desc = "Remove all annotations" })
 vim.api.nvim_create_user_command("AnnoRemove", function()
   anno.remove_at_cursor()
 end, { desc = "Remove annotation at cursor line" })
+
+vim.api.nvim_create_user_command("AnnoToggle", function()
+  anno.toggle_virtuals()
+end, { desc = "Toggle annotation display" })

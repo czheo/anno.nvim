@@ -17,6 +17,7 @@ Add annotations in Neovim.
     { "<leader>ad", "<cmd>AnnoRemove<cr>", desc = "Delete annotation" },
     { "<leader>ay", "<cmd>AnnoYank<cr>", desc = "Yank annotations" },
     { "<leader>aD", "<cmd>AnnoRemoveAll<cr>", desc = "Delete all annotations" },
+    { "<leader>at", "<cmd>AnnoToggle<cr>", desc = "Show/hide annotations" },
   },
 }
 ```
@@ -26,4 +27,5 @@ Add annotations in Neovim.
 - `:'<,'>AnnoAdd`
 - `:AnnoYank`
 - `:AnnoRemove`
+- `:AnnoToggle`
 - `:AnnoRemoveAll`

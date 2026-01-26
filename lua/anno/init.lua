@@ -4,6 +4,18 @@ local M = {}
 
 vim.api.nvim_set_hl(0, "AnnoText", { link = "Todo", default = true })
 
+local function build_suffix(start_line, end_line)
+  if end_line > start_line then
+    return string.format(" [%d-%d]", start_line, end_line)
+  end
+  return ""
+end
+
+local function build_virt_lines(text, start_line, end_line)
+  local suffix = build_suffix(start_line, end_line)
+  return { { { "↳ " .. text .. suffix, "AnnoText" } } }
+end
+
 local function is_file_buffer(bufnr)
   if vim.bo[bufnr].buftype ~= "" then
     return false
@@ -31,17 +43,15 @@ function M.add_anno(opts)
   end
 
   local path = vim.api.nvim_buf_get_name(bufnr)
-  local span = line2 - line1 + 1
-  local suffix = span > 1 and string.format(" [%d-%d]", line1, line2) or ""
   local id = vim.api.nvim_buf_set_extmark(
-    bufnr,         -- target buffer
+    bufnr, -- target buffer
     state.namespace, -- plugin namespace
-    line1 - 1,     -- line (0-based for extmark API)
-    0,             -- col (0-based for extmark API)
+    line1 - 1, -- line (0-based for extmark API)
+    0, -- col (0-based for extmark API)
     {
       end_row = line2 - 1,
       end_col = 0,
-      virt_lines = { { { "↳ " .. text .. suffix, "AnnoText" } } },
+      virt_lines = state.show_virtuals and build_virt_lines(text, line1, line2) or {},
       virt_lines_above = false,
     } -- extmark options
   )
@@ -64,6 +74,40 @@ function M.remove_all()
   end
   state.annotations = {}
   vim.notify("All annotations removed", vim.log.levels.INFO)
+end
+
+function M.toggle_virtuals()
+  state.show_virtuals = not state.show_virtuals
+
+  for bufnr, annos in pairs(state.annotations) do
+    if vim.api.nvim_buf_is_valid(bufnr) then
+      for _, item in ipairs(annos) do
+        local mark = vim.api.nvim_buf_get_extmark_by_id(bufnr, state.namespace, item.id, { details = true })
+        if mark and mark[1] then
+          local lnum = mark[1] + 1
+          local details = mark[3] or {}
+          local end_lnum = details.end_row and (details.end_row + 1) or lnum
+          vim.api.nvim_buf_set_extmark(
+            bufnr,
+            state.namespace,
+            mark[1],
+            mark[2],
+            {
+              id = item.id, -- reuse extmark id instead of creating a new one
+              end_row = (details.end_row ~= nil) and details.end_row or (lnum - 1), -- preserve range end
+              end_col = (details.end_col ~= nil) and details.end_col or 0, -- preserve range end col
+              -- toggle display by setting/unsetting virtual lines on the same extmark
+              virt_lines = state.show_virtuals and build_virt_lines(item.text, lnum, end_lnum) or {},
+              virt_lines_above = false, -- keep annotation below the line
+            }
+          )
+        end
+      end
+    end
+  end
+
+  local status = state.show_virtuals and "shown" or "hidden"
+  vim.notify("Annotations " .. status, vim.log.levels.INFO)
 end
 
 function M.remove_at_cursor()
