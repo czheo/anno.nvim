@@ -15,8 +15,15 @@ Add annotations in Neovim.
     { "<leader>aa", "<cmd>AnnoAdd<cr>", desc = "Add annotation" },
     { "<leader>aa", ":AnnoAdd<cr>", desc = "Add range annotation", mode = "v" },
     { "<leader>ad", "<cmd>AnnoRemove<cr>", desc = "Delete annotation" },
-    { "<leader>al", "<cmd>AnnoList<cr>", desc = "List annotations" },
+    { "<leader>ay", "<cmd>AnnoYank<cr>", desc = "Yank annotations" },
     { "<leader>aD", "<cmd>AnnoRemoveAll<cr>", desc = "Delete all annotations" },
   },
 }
 ```
+
+## Commands
+- `:AnnoAdd`
+- `:'<,'>AnnoAdd`
+- `:AnnoYank`
+- `:AnnoRemove`
+- `:AnnoRemoveAll`

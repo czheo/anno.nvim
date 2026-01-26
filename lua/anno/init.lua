@@ -34,10 +34,10 @@ function M.add_anno(opts)
   local span = line2 - line1 + 1
   local suffix = span > 1 and string.format(" [%d-%d]", line1, line2) or ""
   local id = vim.api.nvim_buf_set_extmark(
-    bufnr, -- target buffer
+    bufnr,         -- target buffer
     state.namespace, -- plugin namespace
-    line1 - 1, -- line (0-based for extmark API)
-    0, -- col (0-based for extmark API)
+    line1 - 1,     -- line (0-based for extmark API)
+    0,             -- col (0-based for extmark API)
     {
       end_row = line2 - 1,
       end_col = 0,
@@ -94,7 +94,7 @@ function M.remove_at_cursor()
   vim.notify("No annotation found at cursor line", vim.log.levels.INFO)
 end
 
-function M.list_annos()
+function M.yank_annos()
   local blocks = {}
   local missing = 0
 
@@ -131,7 +131,11 @@ function M.list_annos()
   if missing > 0 then
     vim.notify(string.format("Annotations: %d (missing: %d)", #blocks, missing), vim.log.levels.WARN)
   end
-  vim.print(table.concat(blocks, "\n\n"))
+  -- Copy to unnamed register so `p` pastes immediately in Neovim.
+  local output = table.concat(blocks, "\n\n")
+  vim.fn.setreg('"', output)
+  vim.notify("Annotations copied", vim.log.levels.INFO)
+  vim.print(output)
 end
 
 return M
