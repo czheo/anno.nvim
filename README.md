@@ -2,9 +2,20 @@
 
 Add annotations in Neovim.
 
-## Features
-- Add annotations tied to line ranges
-- Print annotations in an LLM-friendly format
+## Why?
+When using coding agents such as Claude Code/Codex, I want to
+
+- open a diff view to see the changes in the code.
+- add comments to the code inline to instruct the agents.
+- paste the comments back to the agents to continue the work.
+
+In Claude Code/Codex, you can
+- `ctrl-G` to call out Neovim, which opens a temp buffer.
+- open a file or diff view (e.g. `diffview.nvim`)
+- add inline comments `<leader>aa` using this plugin.
+- copy all comments `<leader>ay` and paste `p` them back to the temp buffer of coding agents.
+
+![screenshot](screenshot.gif)
 
 ## Installation (LazyVim)
 
