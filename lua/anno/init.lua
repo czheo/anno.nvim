@@ -66,6 +66,34 @@ function M.remove_all()
   vim.notify("All annotations removed", vim.log.levels.INFO)
 end
 
+function M.remove_at_cursor()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local annos = state.annotations[bufnr]
+  if not annos or #annos == 0 then
+    vim.notify("No annotations in current buffer", vim.log.levels.INFO)
+    return
+  end
+
+  local cursor = vim.api.nvim_win_get_cursor(0)
+  local line = cursor[1]
+
+  for i = #annos, 1, -1 do
+    local item = annos[i]
+    local mark = vim.api.nvim_buf_get_extmark_by_id(bufnr, state.namespace, item.id, {})
+    if mark and mark[1] and (mark[1] + 1) == line then
+      vim.api.nvim_buf_del_extmark(bufnr, state.namespace, item.id)
+      table.remove(annos, i)
+      if #annos == 0 then
+        state.annotations[bufnr] = nil
+      end
+      vim.notify("Annotation removed", vim.log.levels.INFO)
+      return
+    end
+  end
+
+  vim.notify("No annotation found at cursor line", vim.log.levels.INFO)
+end
+
 function M.list_annos()
   local blocks = {}
   local missing = 0
