@@ -13,7 +13,7 @@ In Claude Code/Codex, you can
 - `ctrl-G` to call out Neovim, which opens a temp buffer.
 - open a file or diff view (e.g. `diffview.nvim`)
 - add inline comments `<leader>aa` using this plugin.
-- copy all comments `<leader>ay` and paste `p` them back to the temp buffer of coding agents.
+- copy all comments and paste `<leader>ap` them back to the temp buffer of coding agents.
 
 ![screenshot](screenshot.gif)
 
