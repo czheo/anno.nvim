@@ -1,8 +1,8 @@
 local anno = require("anno")
 
-vim.api.nvim_create_user_command("AnnoAdd", function()
-  anno.add_anno()
-end, { desc = "Add annotation at cursor" })
+vim.api.nvim_create_user_command("AnnoAdd", function(opts)
+  anno.add_anno(opts)
+end, { desc = "Add annotation at cursor", range = true })
 
 vim.api.nvim_create_user_command("AnnoList", function()
   anno.list_annos()

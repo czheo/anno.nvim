@@ -12,7 +12,7 @@ local function is_file_buffer(bufnr)
   return name ~= nil and name ~= ""
 end
 
-function M.add_anno()
+function M.add_anno(opts)
   local bufnr = vim.api.nvim_get_current_buf()
   if not is_file_buffer(bufnr) then
     vim.notify("AnnoAdd: not a file-backed buffer", vim.log.levels.WARN)
@@ -20,19 +20,28 @@ function M.add_anno()
   end
 
   local pos = vim.api.nvim_win_get_cursor(0)
+  local line1 = opts and opts.line1 or pos[1]
+  local line2 = opts and opts.line2 or pos[1]
+  if line2 < line1 then
+    line1, line2 = line2, line1
+  end
   local text = vim.fn.input("Annotation: ")
   if text == "" then
     return
   end
 
   local path = vim.api.nvim_buf_get_name(bufnr)
+  local span = line2 - line1 + 1
+  local suffix = span > 1 and string.format(" [%d-%d]", line1, line2) or ""
   local id = vim.api.nvim_buf_set_extmark(
     bufnr, -- target buffer
     state.namespace, -- plugin namespace
-    pos[1] - 1, -- line (0-based for extmark API)
-    pos[2], -- col (0-based for extmark API)
+    line1 - 1, -- line (0-based for extmark API)
+    0, -- col (0-based for extmark API)
     {
-      virt_lines = { { { "↳ " .. text, "AnnoText" } } },
+      end_row = line2 - 1,
+      end_col = 0,
+      virt_lines = { { { "↳ " .. text .. suffix, "AnnoText" } } },
       virt_lines_above = false,
     } -- extmark options
   )
@@ -58,16 +67,25 @@ function M.remove_all()
 end
 
 function M.list_annos()
-  local lines = {}
+  local blocks = {}
   local missing = 0
 
   for bufnr, annos in pairs(state.annotations) do
     if vim.api.nvim_buf_is_valid(bufnr) then
       for _, item in ipairs(annos) do
-        local pos = vim.api.nvim_buf_get_extmark_by_id(bufnr, state.namespace, item.id, {})
-        if pos and pos[1] then
-          local lnum = pos[1] + 1
-          table.insert(lines, string.format("%s:%d %s", item.path, lnum, item.text))
+        local mark = vim.api.nvim_buf_get_extmark_by_id(bufnr, state.namespace, item.id, { details = true })
+        if mark and mark[1] then
+          local lnum = mark[1] + 1
+          local details = mark[3] or {}
+          local end_lnum = details.end_row and (details.end_row + 1) or lnum
+          local ft = vim.bo[bufnr].filetype
+          local lines = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, end_lnum, false)
+          local header = string.format("@%s#%d-%d", item.path, lnum, end_lnum)
+          local comment = string.format("Comment: %s", item.text)
+          local code = table.concat(lines, "\n")
+          local fence = string.format("```%s", ft or "")
+          local block = table.concat({ header, comment, "", fence, code, "```" }, "\n")
+          table.insert(blocks, block)
         else
           missing = missing + 1
         end
@@ -77,13 +95,15 @@ function M.list_annos()
     end
   end
 
-  if #lines == 0 then
+  if #blocks == 0 then
     vim.notify("No annotations", vim.log.levels.INFO)
     return
   end
 
-  vim.notify(string.format("Annotations: %d (missing: %d)", #lines, missing), vim.log.levels.INFO)
-  vim.print(lines)
+  if missing > 0 then
+    vim.notify(string.format("Annotations: %d (missing: %d)", #blocks, missing), vim.log.levels.WARN)
+  end
+  vim.print(table.concat(blocks, "\n\n"))
 end
 
 return M
