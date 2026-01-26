@@ -29,3 +29,25 @@ Add annotations in Neovim.
 - `:AnnoRemove`
 - `:AnnoToggle`
 - `:AnnoRemoveAll`
+
+## Setup
+
+```lua
+require("anno").setup({
+  highlight = "Todo",
+  prefix = "↳ ",
+  -- item: { bufnr, extmark_id, path, text }
+  -- ctx: { bufnr, start_line, end_line, filetype, code }
+  yank_format = function(item, ctx)
+    return string.format(
+      "@%s#%d-%d\nComment: %s\n\n```%s\n%s\n```",
+      item.path,
+      ctx.start_line,
+      ctx.end_line,
+      item.text,
+      ctx.filetype or "",
+      ctx.code
+    )
+  end,
+})
+```
