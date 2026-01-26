@@ -2,6 +2,8 @@ local state = require("anno.state")
 
 local M = {}
 
+vim.api.nvim_set_hl(0, "AnnoText", { link = "Todo", default = true })
+
 local function is_file_buffer(bufnr)
   if vim.bo[bufnr].buftype ~= "" then
     return false
@@ -25,11 +27,14 @@ function M.add_anno()
 
   local path = vim.api.nvim_buf_get_name(bufnr)
   local id = vim.api.nvim_buf_set_extmark(
-    bufnr,         -- target buffer
+    bufnr, -- target buffer
     state.namespace, -- plugin namespace
-    pos[1] - 1,    -- line (0-based for extmark API)
-    pos[2],        -- col (0-based for extmark API)
-    {}             -- extmark options
+    pos[1] - 1, -- line (0-based for extmark API)
+    pos[2], -- col (0-based for extmark API)
+    {
+      virt_lines = { { { "↳ " .. text, "AnnoText" } } },
+      virt_lines_above = false,
+    } -- extmark options
   )
 
   state.add(bufnr, {
@@ -62,8 +67,7 @@ function M.list_annos()
         local pos = vim.api.nvim_buf_get_extmark_by_id(bufnr, state.namespace, item.id, {})
         if pos and pos[1] then
           local lnum = pos[1] + 1
-          local col = pos[2] + 1
-          table.insert(lines, string.format("%s:%d:%d %s", item.path, lnum, col, item.text))
+          table.insert(lines, string.format("%s:%d %s", item.path, lnum, item.text))
         else
           missing = missing + 1
         end
