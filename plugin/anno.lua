@@ -19,3 +19,11 @@ end, { desc = "Remove annotation at cursor line" })
 vim.api.nvim_create_user_command("AnnoToggle", function()
   anno.toggle_virtuals()
 end, { desc = "Toggle annotation display" })
+
+vim.api.nvim_create_user_command("AnnoLoad", function(opts)
+  anno.load_from_file(opts.args)
+end, { desc = "Load annotations from file", nargs = 1, complete = "file" })
+
+vim.api.nvim_create_user_command("AnnoSave", function(opts)
+  anno.save_to_file(opts.args)
+end, { desc = "Save annotations to file", nargs = 1, complete = "file" })

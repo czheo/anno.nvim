@@ -22,9 +22,10 @@ In Claude Code/Codex, you can
 ```lua
 {
   "czheo/anno.nvim",
+  cmd = { "AnnoAdd", "AnnoYank", "AnnoRemoveAll", "AnnoRemove", "AnnoToggle", "AnnoLoad", "AnnoSave" },
   keys = {
     { "<leader>aa", "<cmd>AnnoAdd<cr>",       desc = "Add annotation" },
-    { "<leader>aa", ":AnnoAdd<cr>",           desc = "Add range annotation",  mode = "v" },
+    { "<leader>a", ":AnnoAdd<cr>",            desc = "Add range annotation",  mode = "v" },
     { "<leader>ad", "<cmd>AnnoRemove<cr>",    desc = "Delete annotation" },
     { "<leader>ay", "<cmd>AnnoYank<cr>",      desc = "Yank annotations" },
     { "<leader>ap", "<cmd>AnnoYank<cr>p",     desc = "Yank&Paste annotations" },
@@ -41,6 +42,26 @@ In Claude Code/Codex, you can
 - `:AnnoRemove`
 - `:AnnoToggle`
 - `:AnnoRemoveAll`
+- `:AnnoLoad {file}`
+- `:AnnoSave {file}`
+
+`AnnoLoad` appends to existing annotations. Use `:AnnoRemoveAll` first if you want to replace all.
+
+`AnnoLoad`/`AnnoSave` use JSON:
+
+```json
+{
+  "version": 1,
+  "annotations": [
+    {
+      "path": "/abs/path/to/file.lua",
+      "start_line": 12,
+      "end_line": 14,
+      "text": "Refactor this block"
+    }
+  ]
+}
+```
 
 ## Setup
 
