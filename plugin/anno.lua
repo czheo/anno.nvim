@@ -20,6 +20,14 @@ vim.api.nvim_create_user_command("AnnoToggle", function()
   anno.toggle_virtuals()
 end, { desc = "Toggle annotation display" })
 
+vim.api.nvim_create_user_command("AnnoNext", function()
+  anno.next_anno()
+end, { desc = "Jump to next annotation" })
+
+vim.api.nvim_create_user_command("AnnoPrev", function()
+  anno.prev_anno()
+end, { desc = "Jump to previous annotation" })
+
 vim.api.nvim_create_user_command("AnnoLoad", function(opts)
   anno.load_from_file(opts.args)
 end, { desc = "Load annotations from file", nargs = 1, complete = "file" })

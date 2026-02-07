@@ -382,6 +382,70 @@ function M.remove_at_cursor()
   vim.notify("No annotation found at cursor line", vim.log.levels.INFO)
 end
 
+local function jump_to_annotation(forward)
+  local bufnr = vim.api.nvim_get_current_buf()
+  local annos = state.annotations[bufnr]
+  if not annos or #annos == 0 then
+    vim.notify("No annotations in current buffer", vim.log.levels.INFO)
+    return
+  end
+
+  local current_line = vim.api.nvim_win_get_cursor(0)[1]
+  local lines = {}
+  local seen = {}
+
+  for _, item in ipairs(annos) do
+    local mark = vim.api.nvim_buf_get_extmark_by_id(bufnr, state.namespace, item.extmark_id, {})
+    if mark and mark[1] then
+      local line = mark[1] + 1
+      if not seen[line] then
+        table.insert(lines, line)
+        seen[line] = true
+      end
+    end
+  end
+
+  if #lines == 0 then
+    vim.notify("No annotations in current buffer", vim.log.levels.INFO)
+    return
+  end
+
+  table.sort(lines)
+
+  local target = nil
+  if forward then
+    for _, line in ipairs(lines) do
+      if line > current_line then
+        target = line
+        break
+      end
+    end
+    if not target then
+      target = lines[1]
+    end
+  else
+    for i = #lines, 1, -1 do
+      if lines[i] < current_line then
+        target = lines[i]
+        break
+      end
+    end
+    if not target then
+      target = lines[#lines]
+    end
+  end
+
+  vim.api.nvim_win_set_cursor(0, { target, 0 })
+end
+
+function M.next_anno()
+  jump_to_annotation(true)
+end
+
+function M.prev_anno()
+  jump_to_annotation(false)
+end
+
 function M.yank_annos()
   local blocks = {}
   local missing = 0
