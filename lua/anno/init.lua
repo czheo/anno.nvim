@@ -242,6 +242,7 @@ function M.load_from_file(file_path)
 
   local loaded = 0
   local skipped = 0
+  local first_loaded_bufnr = nil
   for _, entry in ipairs(entries) do
     local bufnr = find_or_load_buffer(entry.path)
     if not bufnr then
@@ -251,6 +252,7 @@ function M.load_from_file(file_path)
       if line_count <= 0 then
         skipped = skipped + 1
       else
+        vim.bo[bufnr].buflisted = true
         local start_line = math.max(1, math.min(entry.start_line, line_count))
         local end_line = math.max(start_line, math.min(entry.end_line, line_count))
         local id = vim.api.nvim_buf_set_extmark(
@@ -272,9 +274,16 @@ function M.load_from_file(file_path)
           path = vim.api.nvim_buf_get_name(bufnr),
           text = entry.text,
         })
+        if not first_loaded_bufnr then
+          first_loaded_bufnr = bufnr
+        end
         loaded = loaded + 1
       end
     end
+  end
+
+  if first_loaded_bufnr and vim.api.nvim_buf_is_valid(first_loaded_bufnr) then
+    pcall(vim.cmd, "silent keepalt buffer " .. first_loaded_bufnr)
   end
 
   if skipped > 0 then
