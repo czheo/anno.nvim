@@ -89,3 +89,21 @@ require("anno").setup({
   end,
 })
 ```
+
+## Testing
+
+Requirements:
+- Neovim
+- `plenary.nvim` at `~/.local/share/nvim/lazy/plenary.nvim` (or set `PLENARY=...`)
+
+Run tests:
+
+```bash
+make test
+```
+
+Custom plenary path:
+
+```bash
+PLENARY=/path/to/plenary.nvim make test
+```
