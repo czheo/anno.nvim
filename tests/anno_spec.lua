@@ -121,4 +121,39 @@ describe("anno.nvim", function()
       anno.setup("bad")
     end, "anno.setup: opts must be a table")
   end)
+
+  it("yank_format receives one annotation object", function()
+    local src = vim.fn.tempname() .. ".lua"
+    write_file(src, { "alpha", "beta" })
+    vim.cmd("edit " .. vim.fn.fnameescape(src))
+
+    local bufnr = vim.api.nvim_get_current_buf()
+    local id = vim.api.nvim_buf_set_extmark(bufnr, state.namespace, 0, 0, {
+      end_row = 1,
+      end_col = 0,
+    })
+    state.add(bufnr, {
+      bufnr = bufnr,
+      extmark_id = id,
+      path = vim.api.nvim_buf_get_name(bufnr),
+      text = "note",
+    })
+
+    local captured = nil
+    anno.setup({
+      yank_format = function(a)
+        captured = a
+        return "ok"
+      end,
+    })
+
+    anno.yank()
+
+    assert.is_truthy(captured)
+    assert.are.same("note", captured.text)
+    assert.are.same(1, captured.start_line)
+    assert.are.same(2, captured.end_line)
+    assert.are.same("alpha\nbeta", captured.code)
+    assert.are.same("ok", vim.fn.getreg('"'))
+  end)
 end)

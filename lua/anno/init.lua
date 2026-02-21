@@ -49,14 +49,13 @@ end
 
 --- Default formatter used by :AnnoYank.
 ---
---- @param item table { bufnr, extmark_id, path, text }
---- @param ctx table { bufnr, start_line, end_line, filetype, code }
+--- @param anno table { bufnr, extmark_id, path, text, start_line, end_line, filetype, code }
 --- @return string
-local function default_yank_format(item, ctx)
-  local header = string.format("@%s#%d-%d", item.path, ctx.start_line, ctx.end_line)
-  local comment = string.format("Comment: %s", item.text)
-  local fence = string.format("```%s", ctx.filetype or "")
-  return table.concat({ header, comment, "", fence, ctx.code, "```" }, "\n")
+local function default_yank_format(anno)
+  local header = string.format("@%s#%d-%d", anno.path, anno.start_line, anno.end_line)
+  local comment = string.format("Comment: %s", anno.text)
+  local fence = string.format("```%s", anno.filetype or "")
+  return table.concat({ header, comment, "", fence, anno.code, "```" }, "\n")
 end
 
 --- Return true when bufnr points to a normal file-backed buffer.
@@ -596,14 +595,18 @@ function M.yank()
     local lines = vim.api.nvim_buf_get_lines(ctx.bufnr, ctx.start_line - 1, ctx.end_line, false)
     local code = table.concat(lines, "\n")
     local formatter = state.config.yank_format or default_yank_format
-
-    table.insert(blocks, formatter(item, {
+    local anno = {
       bufnr = ctx.bufnr,
+      extmark_id = item.extmark_id,
+      path = item.path,
+      text = item.text,
       start_line = ctx.start_line,
       end_line = ctx.end_line,
       filetype = ft,
       code = code,
-    }))
+    }
+
+    table.insert(blocks, formatter(anno))
   end)
 
   if #blocks == 0 then

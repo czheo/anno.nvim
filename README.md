@@ -74,17 +74,16 @@ In Claude Code/Codex, you can
 require("anno").setup({
   highlight = "Todo",
   prefix = "↳ ",
-  -- item: { bufnr, extmark_id, path, text }
-  -- ctx: { bufnr, start_line, end_line, filetype, code }
-  yank_format = function(item, ctx)
+  -- anno: { bufnr, extmark_id, path, text, start_line, end_line, filetype, code }
+  yank_format = function(anno)
     return string.format(
       "@%s#%d-%d\nComment: %s\n\n```%s\n%s\n```",
-      item.path,
-      ctx.start_line,
-      ctx.end_line,
-      item.text,
-      ctx.filetype or "",
-      ctx.code
+      anno.path,
+      anno.start_line,
+      anno.end_line,
+      anno.text,
+      anno.filetype or "",
+      anno.code
     )
   end,
 })
