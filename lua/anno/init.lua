@@ -322,6 +322,16 @@ end
 local function for_each_live_annotation(fn)
   local missing = 0
 
+  -- Iteration contract (intentional for coding-agent workflows):
+  -- - Within each buffer bucket (`annos`), `ipairs` preserves annotation insertion order.
+  --   This keeps earlier (usually more important) annotations earlier in output.
+  -- - Buffer buckets are traversed via `pairs(state.annotations)`, so cross-buffer order is undefined.
+  --   We intentionally avoid a global timeline because annotations are consumed file-by-file.
+  --
+  -- Why we keep this model:
+  -- - Users commonly add high-priority guidance first.
+  -- - Grouping by buffer helps agents stay focused on one file context at a time.
+  -- - A synthetic cross-buffer order would add complexity without improving this workflow.
   for bufnr, annos in pairs(state.annotations) do
     if vim.api.nvim_buf_is_valid(bufnr) then
       for _, item in ipairs(annos) do
@@ -586,6 +596,13 @@ function M.prev()
 end
 
 --- Format and copy annotations to the unnamed register.
+---
+--- Ordering note:
+--- - Output preserves insertion order within each buffer.
+--- - Output is grouped by buffer; cross-buffer group order is intentionally undefined.
+---
+--- This mirrors how the plugin is used with coding agents: priority comments are often added
+--- first, and per-file grouping keeps attention on one file at a time.
 ---
 --- Canonical public API name: `yank`.
 function M.yank()
