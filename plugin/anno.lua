@@ -1,37 +1,50 @@
+--- User-command entrypoints for anno.nvim.
+---
+--- This file intentionally stays thin: it wires Ex commands to functions implemented in
+--- `lua/anno/init.lua`, keeping plugin loading predictable and easy to audit.
 local anno = require("anno")
 
-vim.api.nvim_create_user_command("AnnoAdd", function(opts)
-  anno.add_anno(opts)
+--- Register one user command with a consistent wrapper shape.
+---
+--- @param name string
+--- @param fn function
+--- @param opts table
+local function register(name, fn, opts)
+  vim.api.nvim_create_user_command(name, fn, opts)
+end
+
+register("AnnoAdd", function(opts)
+  anno.add(opts)
 end, { desc = "Add annotation at cursor", range = true })
 
-vim.api.nvim_create_user_command("AnnoYank", function()
-  anno.yank_annos()
+register("AnnoYank", function()
+  anno.yank()
 end, { desc = "Yank annotations" })
 
-vim.api.nvim_create_user_command("AnnoRemoveAll", function()
+register("AnnoRemoveAll", function()
   anno.remove_all()
 end, { desc = "Remove all annotations" })
 
-vim.api.nvim_create_user_command("AnnoRemove", function()
-  anno.remove_at_cursor()
+register("AnnoRemove", function()
+  anno.remove()
 end, { desc = "Remove annotation at cursor line" })
 
-vim.api.nvim_create_user_command("AnnoToggle", function()
-  anno.toggle_virtuals()
+register("AnnoToggle", function()
+  anno.toggle()
 end, { desc = "Toggle annotation display" })
 
-vim.api.nvim_create_user_command("AnnoNext", function()
-  anno.next_anno()
+register("AnnoNext", function()
+  anno.next()
 end, { desc = "Jump to next annotation" })
 
-vim.api.nvim_create_user_command("AnnoPrev", function()
-  anno.prev_anno()
+register("AnnoPrev", function()
+  anno.prev()
 end, { desc = "Jump to previous annotation" })
 
-vim.api.nvim_create_user_command("AnnoLoad", function(opts)
-  anno.load_from_file(opts.args)
+register("AnnoLoad", function(opts)
+  anno.load(opts.args)
 end, { desc = "Load annotations from file", nargs = 1, complete = "file" })
 
-vim.api.nvim_create_user_command("AnnoSave", function(opts)
-  anno.save_to_file(opts.args)
+register("AnnoSave", function(opts)
+  anno.save(opts.args)
 end, { desc = "Save annotations to file", nargs = 1, complete = "file" })

@@ -43,7 +43,7 @@ describe("anno.nvim", function()
       text = "Refactor this",
     })
 
-    anno.save_to_file(out)
+    anno.save(out)
 
     local payload = vim.fn.json_decode(table.concat(vim.fn.readfile(out), "\n"))
     assert.are.same(1, payload.version)
@@ -74,7 +74,7 @@ describe("anno.nvim", function()
     }
     write_file(input, { vim.fn.json_encode(payload) })
 
-    anno.load_from_file(input)
+    anno.load(input)
 
     local bufnr = vim.fn.bufnr(vim.fn.fnamemodify(src, ":p"))
     assert.is_true(bufnr > 0)
@@ -106,5 +106,19 @@ describe("anno.nvim", function()
     anno.remove_all()
 
     assert.are.same(nil, state.annotations[bufnr])
+  end)
+
+  it("setup validates option types", function()
+    assert.has_error(function()
+      anno.setup({ prefix = 123 })
+    end, "anno.setup: prefix must be a string")
+
+    assert.has_error(function()
+      anno.setup({ yank_format = "bad" })
+    end, "anno.setup: yank_format must be a function")
+
+    assert.has_error(function()
+      anno.setup("bad")
+    end, "anno.setup: opts must be a table")
   end)
 end)
