@@ -681,6 +681,9 @@ local function build_quickfix_items()
       lnum = ctx.start_line,
       col = 1,
       text = string.format("%s%s%s", label, item.text, suffix),
+      -- Stable identity so quickfix actions can target the exact annotation entry
+      -- even when multiple annotations share the same start line.
+      user_data = { anno_seq = item.seq },
     })
   end
   return items, missing
@@ -1032,6 +1035,33 @@ local function find_annotation_at_line(bufnr, line)
   return nil, nil, nil
 end
 
+--- Find tracked annotation by globally unique insertion sequence id.
+---
+--- @param seq integer
+--- @return integer|nil bufnr
+--- @return table|nil item
+--- @return table|nil ctx
+--- @return integer|nil index
+local function find_annotation_by_seq(seq)
+  if type(seq) ~= "number" then
+    return nil, nil, nil, nil
+  end
+
+  for bufnr, annos in pairs(state.annotations) do
+    for i, item in ipairs(annos) do
+      if item.seq == seq then
+        local ctx = get_extmark_range(bufnr, item.extmark_id)
+        if ctx then
+          return bufnr, item, ctx, i
+        end
+        return nil, nil, nil, nil
+      end
+    end
+  end
+
+  return nil, nil, nil, nil
+end
+
 --- Resolve selected quickfix row into a tracked annotation.
 ---
 --- We only operate on quickfix lists created by :AnnoList (title = "Annotations")
@@ -1041,29 +1071,64 @@ end
 --- @return table|nil item
 --- @return table|nil ctx
 --- @return integer|nil index
-local function find_selected_qf_annotation()
+local function find_selected_qf_annotation(opts)
+  opts = opts or {}
+
   local qf = vim.fn.getqflist({ title = 1, idx = 0, items = 1 })
   if not qf or qf.title ~= "Annotations" then
-    vim.notify("Anno: current quickfix is not the Annotations list", vim.log.levels.WARN)
+    if not opts.silent then
+      vim.notify("Anno: current quickfix is not the Annotations list", vim.log.levels.WARN)
+    end
     return nil, nil, nil, nil
   end
 
   local item = qf.items and qf.items[qf.idx]
   if not item then
-    vim.notify("Anno: no quickfix item selected", vim.log.levels.INFO)
+    if not opts.silent then
+      vim.notify("Anno: no quickfix item selected", vim.log.levels.INFO)
+    end
     return nil, nil, nil, nil
   end
 
+  local seq = item.user_data and item.user_data.anno_seq
+  if seq ~= nil then
+    local bufnr, anno_item, ctx, index = find_annotation_by_seq(seq)
+    if bufnr and anno_item and index then
+      return bufnr, anno_item, ctx, index
+    end
+  end
+
+  -- Backward-compatible fallback for entries that do not carry user_data identity.
   local bufnr = item.bufnr
   if (not bufnr or bufnr == 0) and item.filename and item.filename ~= "" then
     bufnr = find_or_load_buffer(item.filename)
   end
   if not bufnr or bufnr == 0 then
-    vim.notify("Anno: quickfix item has no valid buffer", vim.log.levels.WARN)
+    if not opts.silent then
+      vim.notify("Anno: quickfix item has no valid buffer", vim.log.levels.WARN)
+    end
     return nil, nil, nil, nil
   end
 
   return bufnr, find_annotation_at_line(bufnr, item.lnum)
+end
+
+--- Resolve annotation in a normal file buffer, preferring current Annotations quickfix selection
+--- when it points at the same buffer/line. This preserves exact identity (seq) after jumping
+--- from quickfix into the file buffer.
+---
+--- @param bufnr integer
+--- @param line integer
+--- @return table|nil item
+--- @return table|nil ctx
+--- @return integer|nil index
+local function find_annotation_from_file_context(bufnr, line)
+  local qf_bufnr, qf_item, qf_ctx, qf_index = find_selected_qf_annotation({ silent = true })
+  if qf_bufnr and qf_item and qf_index and qf_ctx and qf_bufnr == bufnr and qf_ctx.start_line == line then
+    return qf_item, qf_ctx, qf_index
+  end
+
+  return find_annotation_at_line(bufnr, line)
 end
 
 --- Edit an annotation anchored at the current cursor line.
@@ -1086,7 +1151,7 @@ function M.edit()
     bufnr = qf_bufnr
   else
     local line = vim.api.nvim_win_get_cursor(0)[1]
-    item = find_annotation_at_line(bufnr, line)
+    item = find_annotation_from_file_context(bufnr, line)
     if not item then
       vim.notify("No annotation found at cursor line", vim.log.levels.INFO)
       return
@@ -1132,7 +1197,7 @@ function M.remove()
     bufnr = qf_bufnr
   else
     local line = vim.api.nvim_win_get_cursor(0)[1]
-    item, _, index = find_annotation_at_line(bufnr, line)
+    item, _, index = find_annotation_from_file_context(bufnr, line)
     if not item then
       vim.notify("No annotation found at cursor line", vim.log.levels.INFO)
       return

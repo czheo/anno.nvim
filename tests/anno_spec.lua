@@ -255,4 +255,75 @@ describe("anno.nvim", function()
     assert.are.same("second", qf.items[1].text)
     assert.are.same("third", qf.items[2].text)
   end)
+
+  it("removes the exact selected quickfix annotation when lines overlap", function()
+    local src = vim.fn.tempname() .. ".lua"
+    write_file(src, { "same line" })
+    vim.cmd("edit " .. vim.fn.fnameescape(src))
+
+    local bufnr = vim.api.nvim_get_current_buf()
+    local path = vim.api.nvim_buf_get_name(bufnr)
+
+    local id1 = vim.api.nvim_buf_set_extmark(bufnr, state.namespace_id, 0, 0, { end_row = 0, end_col = 0 })
+    state.add(bufnr, {
+      bufnr = bufnr,
+      extmark_id = id1,
+      path = path,
+      text = "first",
+    })
+
+    local id2 = vim.api.nvim_buf_set_extmark(bufnr, state.namespace_id, 0, 0, { end_row = 0, end_col = 0 })
+    state.add(bufnr, {
+      bufnr = bufnr,
+      extmark_id = id2,
+      path = path,
+      text = "second",
+    })
+
+    anno.list()
+    vim.fn.setqflist({}, "r", { idx = 1 })
+
+    local qf_win = vim.fn.getqflist({ winid = 1 }).winid
+    assert.is_true(qf_win > 0)
+    vim.api.nvim_set_current_win(qf_win)
+
+    anno.remove()
+
+    assert.are.same(1, #state.annotations[bufnr])
+    assert.are.same("second", state.annotations[bufnr][1].text)
+  end)
+
+  it("removes selected quickfix annotation after jumping back to file buffer", function()
+    local src = vim.fn.tempname() .. ".lua"
+    write_file(src, { "same line" })
+    vim.cmd("edit " .. vim.fn.fnameescape(src))
+
+    local bufnr = vim.api.nvim_get_current_buf()
+    local path = vim.api.nvim_buf_get_name(bufnr)
+
+    local id1 = vim.api.nvim_buf_set_extmark(bufnr, state.namespace_id, 0, 0, { end_row = 0, end_col = 0 })
+    state.add(bufnr, {
+      bufnr = bufnr,
+      extmark_id = id1,
+      path = path,
+      text = "first",
+    })
+
+    local id2 = vim.api.nvim_buf_set_extmark(bufnr, state.namespace_id, 0, 0, { end_row = 0, end_col = 0 })
+    state.add(bufnr, {
+      bufnr = bufnr,
+      extmark_id = id2,
+      path = path,
+      text = "second",
+    })
+
+    anno.list()
+    vim.fn.setqflist({}, "r", { idx = 1 })
+    vim.cmd("cc") -- jump to selected quickfix item in file buffer
+
+    anno.remove()
+
+    assert.are.same(1, #state.annotations[bufnr])
+    assert.are.same("second", state.annotations[bufnr][1].text)
+  end)
 end)
