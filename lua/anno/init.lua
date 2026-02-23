@@ -461,6 +461,28 @@ function M.save(file_path)
   end
 end
 
+--- Update an existing annotation extmark in-place using current plugin display settings.
+---
+--- @param bufnr integer
+--- @param item table
+--- @param ctx table Output from get_extmark_range()
+local function update_annotation_extmark(bufnr, item, ctx)
+  vim.api.nvim_buf_set_extmark(
+    bufnr,
+    state.namespace,
+    ctx.row0,
+    ctx.col0,
+    {
+      id = item.extmark_id,
+      -- Preserve explicit end coordinates when present; otherwise keep a single-line mark.
+      end_row = (ctx.end_row0 ~= nil) and ctx.end_row0 or (ctx.start_line - 1),
+      end_col = (ctx.end_col0 ~= nil) and ctx.end_col0 or 0,
+      virt_lines = state.show_virtuals and build_virt_lines(item.text, ctx.start_line, ctx.end_line) or {},
+      virt_lines_above = false,
+    }
+  )
+end
+
 --- Toggle inline virtual annotation visibility.
 ---
 --- Canonical public API name: `toggle`.
@@ -468,20 +490,7 @@ function M.toggle()
   state.show_virtuals = not state.show_virtuals
 
   for_each_live_annotation(function(item, ctx)
-    vim.api.nvim_buf_set_extmark(
-      ctx.bufnr,
-      state.namespace,
-      ctx.row0,
-      ctx.col0,
-      {
-        id = item.extmark_id,
-        -- Preserve explicit end coordinates when present; otherwise keep a single-line mark.
-        end_row = (ctx.end_row0 ~= nil) and ctx.end_row0 or (ctx.start_line - 1),
-        end_col = (ctx.end_col0 ~= nil) and ctx.end_col0 or 0,
-        virt_lines = state.show_virtuals and build_virt_lines(item.text, ctx.start_line, ctx.end_line) or {},
-        virt_lines_above = false,
-      }
-    )
+    update_annotation_extmark(ctx.bufnr, item, ctx)
   end)
 
   local status = state.show_virtuals and "shown" or "hidden"
@@ -511,19 +520,7 @@ function M.edit()
       end
 
       item.text = text
-      vim.api.nvim_buf_set_extmark(
-        bufnr,
-        state.namespace,
-        ctx.row0,
-        ctx.col0,
-        {
-          id = item.extmark_id,
-          end_row = (ctx.end_row0 ~= nil) and ctx.end_row0 or (ctx.start_line - 1),
-          end_col = (ctx.end_col0 ~= nil) and ctx.end_col0 or 0,
-          virt_lines = state.show_virtuals and build_virt_lines(item.text, ctx.start_line, ctx.end_line) or {},
-          virt_lines_above = false,
-        }
-      )
+      update_annotation_extmark(bufnr, item, ctx)
 
       vim.notify("Annotation edited", vim.log.levels.INFO)
       return
