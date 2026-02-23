@@ -148,4 +148,41 @@ describe("anno.nvim", function()
     assert.are.same("alpha\nbeta", captured.code)
     assert.are.same("ok", vim.fn.getreg('"'))
   end)
+
+  it("lists annotations into quickfix", function()
+    local src = vim.fn.tempname() .. ".lua"
+    write_file(src, { "x", "y", "z" })
+    vim.cmd("edit " .. vim.fn.fnameescape(src))
+
+    local bufnr = vim.api.nvim_get_current_buf()
+    local path = vim.api.nvim_buf_get_name(bufnr)
+
+    local id1 = vim.api.nvim_buf_set_extmark(bufnr, state.namespace_id, 0, 0, { end_row = 0, end_col = 0 })
+    state.add(bufnr, {
+      bufnr = bufnr,
+      extmark_id = id1,
+      path = path,
+      text = "first",
+    })
+
+    local id2 = vim.api.nvim_buf_set_extmark(bufnr, state.namespace_id, 1, 0, { end_row = 2, end_col = 0 })
+    state.add(bufnr, {
+      bufnr = bufnr,
+      extmark_id = id2,
+      path = path,
+      text = "range",
+    })
+
+    anno.list()
+
+    local qf = vim.fn.getqflist({ title = 1, items = 1 })
+    assert.are.same("Annotations", qf.title)
+    assert.are.same(2, #qf.items)
+    assert.are.same(bufnr, qf.items[1].bufnr)
+    assert.are.same(1, qf.items[1].lnum)
+    assert.are.same("first", qf.items[1].text)
+    assert.are.same(bufnr, qf.items[2].bufnr)
+    assert.are.same(2, qf.items[2].lnum)
+    assert.are.same("range [2-3]", qf.items[2].text)
+  end)
 end)

@@ -21,6 +21,13 @@ local command_specs = {
     opts = { desc = "Yank annotations" },
   },
   {
+    name = "AnnoList",
+    handler = function()
+      anno.list()
+    end,
+    opts = { desc = "List annotations in quickfix" },
+  },
+  {
     name = "AnnoRemoveAll",
     handler = function()
       anno.remove_all()

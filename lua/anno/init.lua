@@ -372,6 +372,47 @@ function M.remove_all()
   clear_annotations(false)
 end
 
+--- List live annotations in the quickfix list for cross-file navigation.
+---
+--- Canonical public API name: `list`.
+function M.list()
+  local items = {}
+  local missing = for_each_live_annotation(function(item, ctx)
+    local suffix = ctx.end_line > ctx.start_line and string.format(" [%d-%d]", ctx.start_line, ctx.end_line) or ""
+    table.insert(items, {
+      filename = item.path,
+      lnum = ctx.start_line,
+      col = 1,
+      text = item.text .. suffix,
+    })
+  end)
+
+  if #items == 0 then
+    vim.notify("No annotations", vim.log.levels.INFO)
+    return
+  end
+
+  -- Stable ordering helps users scan annotations predictably across buffers.
+  table.sort(items, function(a, b)
+    if a.filename == b.filename then
+      return a.lnum < b.lnum
+    end
+    return a.filename < b.filename
+  end)
+
+  vim.fn.setqflist({}, "r", {
+    title = "Annotations",
+    items = items,
+  })
+  vim.cmd("copen")
+
+  if missing > 0 then
+    vim.notify(string.format("Annotations listed: %d (missing: %d)", #items, missing), vim.log.levels.WARN)
+  else
+    vim.notify(string.format("Annotations listed: %d", #items), vim.log.levels.INFO)
+  end
+end
+
 --- Load annotations from a JSON file and append them to in-memory state.
 ---
 --- Canonical public API name: `load`.
