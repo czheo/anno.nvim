@@ -160,6 +160,32 @@ describe("anno.nvim", function()
     assert.are.same("ok", vim.fn.getreg('"'))
   end)
 
+  it("default yank format omits empty code fences", function()
+    local src = vim.fn.tempname() .. ".lua"
+    write_file(src, { "   " })
+    vim.cmd("edit " .. vim.fn.fnameescape(src))
+
+    local bufnr = vim.api.nvim_get_current_buf()
+    local id = vim.api.nvim_buf_set_extmark(bufnr, state.namespace_id, 0, 0, {
+      end_row = 0,
+      end_col = 0,
+    })
+    state.add(bufnr, {
+      bufnr = bufnr,
+      extmark_id = id,
+      path = vim.api.nvim_buf_get_name(bufnr),
+      text = "blank",
+    })
+
+    anno.setup({ yank_format = nil })
+    anno.yank()
+
+    local out = vim.fn.getreg('"')
+    assert.is_truthy(out:match("^@"))
+    assert.is_truthy(out:match("Comment: blank"))
+    assert.is_nil(out:match("```"))
+  end)
+
   it("lists annotations into quickfix", function()
     local src = vim.fn.tempname() .. ".lua"
     write_file(src, { "x", "y", "z" })

@@ -213,6 +213,10 @@ local function build_virt_lines(text, start_line, end_line, hl_group)
   return { { { state.config.prefix .. text .. suffix, hl_group } } }
 end
 
+local function has_non_whitespace(text)
+  return type(text) == "string" and text:match("%S") ~= nil
+end
+
 --- Default formatter used by :AnnoYank.
 ---
 --- @param anno table { bufnr, extmark_id, path, text, start_line, end_line, filetype, code }
@@ -220,8 +224,18 @@ end
 local function default_yank_format(anno)
   local header = string.format("@%s#%d-%d", anno.path, anno.start_line, anno.end_line)
   local comment = string.format("Comment: %s", anno.text)
-  local fence = string.format("```%s", anno.filetype or "")
-  return table.concat({ header, comment, "", fence, anno.code, "```" }, "\n")
+  local lines = { header, comment }
+
+  -- Skip empty/whitespace-only snippets to avoid noisy empty fences in paste output.
+  if has_non_whitespace(anno.code) then
+    local fence = string.format("```%s", anno.filetype or "")
+    table.insert(lines, "")
+    table.insert(lines, fence)
+    table.insert(lines, anno.code)
+    table.insert(lines, "```")
+  end
+
+  return table.concat(lines, "\n")
 end
 
 --- Return true when bufnr points to a normal file-backed buffer.
