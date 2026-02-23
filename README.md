@@ -36,6 +36,7 @@ In Claude Code/Codex, you can
     { "<leader>ap", "<cmd>AnnoYank<cr>p",     desc = "Yank&Paste annotations" },
     { "<leader>ai", "<cmd>AnnoImport<cr>",    desc = "Import annotations" },
     { "<leader>ao", "<cmd>AnnoOutput<cr>",    desc = "Output annotations" },
+    { "<leader>ag", "<cmd>AnnoGroup<cr>",     desc = "Set annotation group" },
     { "<leader>aD", "<cmd>AnnoRemoveAll<cr>", desc = "Delete all annotations" },
     { "<leader>at", "<cmd>AnnoToggle<cr>",    desc = "Show/hide annotations" },
   },
