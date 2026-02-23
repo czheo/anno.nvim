@@ -60,6 +60,12 @@ In Claude Code/Codex, you can
 
 `AnnoImport` appends to existing annotations. Use `:AnnoRemoveAll` first if you want to replace all.
 
+Tip (ad-hoc load from shell):
+
+```bash
+nvim -c "AnnoImport /abs/path/to/annotation.json" -c "AnnoList"
+```
+
 `AnnoImport`/`AnnoOutput` use grouped JSON:
 
 ```json
