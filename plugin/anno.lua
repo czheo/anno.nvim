@@ -4,47 +4,73 @@
 --- `lua/anno/init.lua`, keeping plugin loading predictable and easy to audit.
 local anno = require("anno")
 
---- Register one user command with a consistent wrapper shape.
----
---- @param name string
---- @param fn function
---- @param opts table
-local function register(name, fn, opts)
-  vim.api.nvim_create_user_command(name, fn, opts)
+--- Declarative command spec so adding/removing commands is a data-only change.
+local command_specs = {
+  {
+    name = "AnnoAdd",
+    handler = function(opts)
+      anno.add(opts)
+    end,
+    opts = { desc = "Add annotation at cursor", range = true },
+  },
+  {
+    name = "AnnoYank",
+    handler = function()
+      anno.yank()
+    end,
+    opts = { desc = "Yank annotations" },
+  },
+  {
+    name = "AnnoRemoveAll",
+    handler = function()
+      anno.remove_all()
+    end,
+    opts = { desc = "Remove all annotations" },
+  },
+  {
+    name = "AnnoRemove",
+    handler = function()
+      anno.remove()
+    end,
+    opts = { desc = "Remove annotation at cursor line" },
+  },
+  {
+    name = "AnnoToggle",
+    handler = function()
+      anno.toggle()
+    end,
+    opts = { desc = "Toggle annotation display" },
+  },
+  {
+    name = "AnnoNext",
+    handler = function()
+      anno.next()
+    end,
+    opts = { desc = "Jump to next annotation" },
+  },
+  {
+    name = "AnnoPrev",
+    handler = function()
+      anno.prev()
+    end,
+    opts = { desc = "Jump to previous annotation" },
+  },
+  {
+    name = "AnnoLoad",
+    handler = function(opts)
+      anno.load(opts.args)
+    end,
+    opts = { desc = "Load annotations from file", nargs = 1, complete = "file" },
+  },
+  {
+    name = "AnnoSave",
+    handler = function(opts)
+      anno.save(opts.args)
+    end,
+    opts = { desc = "Save annotations to file", nargs = 1, complete = "file" },
+  },
+}
+
+for _, spec in ipairs(command_specs) do
+  vim.api.nvim_create_user_command(spec.name, spec.handler, spec.opts)
 end
-
-register("AnnoAdd", function(opts)
-  anno.add(opts)
-end, { desc = "Add annotation at cursor", range = true })
-
-register("AnnoYank", function()
-  anno.yank()
-end, { desc = "Yank annotations" })
-
-register("AnnoRemoveAll", function()
-  anno.remove_all()
-end, { desc = "Remove all annotations" })
-
-register("AnnoRemove", function()
-  anno.remove()
-end, { desc = "Remove annotation at cursor line" })
-
-register("AnnoToggle", function()
-  anno.toggle()
-end, { desc = "Toggle annotation display" })
-
-register("AnnoNext", function()
-  anno.next()
-end, { desc = "Jump to next annotation" })
-
-register("AnnoPrev", function()
-  anno.prev()
-end, { desc = "Jump to previous annotation" })
-
-register("AnnoLoad", function(opts)
-  anno.load(opts.args)
-end, { desc = "Load annotations from file", nargs = 1, complete = "file" })
-
-register("AnnoSave", function(opts)
-  anno.save(opts.args)
-end, { desc = "Save annotations to file", nargs = 1, complete = "file" })

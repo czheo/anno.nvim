@@ -6,16 +6,8 @@ local function write_file(path, lines)
 end
 
 local function reset_state()
-  for bufnr, _ in pairs(state.annotations) do
-    if vim.api.nvim_buf_is_valid(bufnr) then
-      vim.api.nvim_buf_clear_namespace(bufnr, state.namespace, 0, -1)
-    end
-  end
-  state.annotations = {}
-  state.show_virtuals = true
-  state.config.highlight = "Todo"
-  state.config.prefix = "↳ "
-  state.config.yank_format = nil
+  -- Tests should reset through the same state API used by production code.
+  state.reset()
 end
 
 describe("anno.nvim", function()

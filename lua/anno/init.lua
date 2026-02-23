@@ -205,12 +205,8 @@ end
 ---
 --- @param silent boolean Suppress success notification when true.
 local function clear_annotations(silent)
-  for bufnr, _ in pairs(state.annotations) do
-    if vim.api.nvim_buf_is_valid(bufnr) then
-      vim.api.nvim_buf_clear_namespace(bufnr, state.namespace, 0, -1)
-    end
-  end
-  state.annotations = {}
+  -- Keep current setup() options while clearing runtime annotations.
+  state.reset({ keep_config = true })
   if not silent then
     vim.notify("All annotations removed", vim.log.levels.INFO)
   end

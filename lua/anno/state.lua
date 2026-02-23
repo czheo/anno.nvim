@@ -25,4 +25,38 @@ function M.add(bufnr, item)
   table.insert(M.annotations[bufnr], item)
 end
 
+--- Remove all extmarks and tracked entries in one buffer.
+---
+--- This helper is used by both runtime commands and tests so they keep the same cleanup logic.
+---
+--- @param bufnr integer
+function M.clear_buffer_annotations(bufnr)
+  if not vim.api.nvim_buf_is_valid(bufnr) then
+    M.annotations[bufnr] = nil
+    return
+  end
+
+  vim.api.nvim_buf_clear_namespace(bufnr, M.namespace, 0, -1)
+  M.annotations[bufnr] = nil
+end
+
+--- Reset all plugin state to defaults.
+---
+--- @param opts table|nil
+--- @field keep_config boolean|nil When true, preserve current setup() values.
+function M.reset(opts)
+  opts = opts or {}
+
+  for bufnr, _ in pairs(M.annotations) do
+    M.clear_buffer_annotations(bufnr)
+  end
+
+  M.show_virtuals = true
+  if not opts.keep_config then
+    M.config.highlight = "Todo"
+    M.config.prefix = "↳ "
+    M.config.yank_format = nil
+  end
+end
+
 return M
