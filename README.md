@@ -22,7 +22,7 @@ In Claude Code/Codex, you can
 ```lua
 {
   "czheo/anno.nvim",
-  cmd = { "AnnoAdd", "AnnoEdit", "AnnoYank", "AnnoList", "AnnoRemoveAll", "AnnoRemove", "AnnoToggle", "AnnoNext", "AnnoPrev", "AnnoLoad", "AnnoSave" },
+  cmd = { "AnnoAdd", "AnnoEdit", "AnnoYank", "AnnoList", "AnnoRemoveAll", "AnnoRemove", "AnnoToggle", "AnnoNext", "AnnoPrev", "AnnoImport", "AnnoOutput" },
   keys = {
     { "<leader>a",  "",                       desc = "+annotations" },
     { "<leader>aa", "<cmd>AnnoAdd<cr>",       desc = "Add annotation" },
@@ -34,6 +34,8 @@ In Claude Code/Codex, you can
     { "<leader>ay", "<cmd>AnnoYank<cr>",      desc = "Yank annotations" },
     { "<leader>al", "<cmd>AnnoList<cr>",      desc = "List annotations" },
     { "<leader>ap", "<cmd>AnnoYank<cr>p",     desc = "Yank&Paste annotations" },
+    { "<leader>ai", "<cmd>AnnoImport<cr>",    desc = "Import annotations" },
+    { "<leader>ao", "<cmd>AnnoOutput<cr>",    desc = "Output annotations" },
     { "<leader>aD", "<cmd>AnnoRemoveAll<cr>", desc = "Delete all annotations" },
     { "<leader>at", "<cmd>AnnoToggle<cr>",    desc = "Show/hide annotations" },
   },
@@ -51,12 +53,12 @@ In Claude Code/Codex, you can
 - `:AnnoNext`
 - `:AnnoPrev`
 - `:AnnoRemoveAll`
-- `:AnnoLoad {file}`
-- `:AnnoSave {file}`
+- `:AnnoImport {file}`
+- `:AnnoOutput {file}`
 
-`AnnoLoad` appends to existing annotations. Use `:AnnoRemoveAll` first if you want to replace all.
+`AnnoImport` appends to existing annotations. Use `:AnnoRemoveAll` first if you want to replace all.
 
-`AnnoLoad`/`AnnoSave` use JSON:
+`AnnoImport`/`AnnoOutput` use JSON:
 
 ```json
 {

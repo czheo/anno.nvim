@@ -70,18 +70,32 @@ local command_specs = {
     opts = { desc = "Jump to previous annotation" },
   },
   {
-    name = "AnnoLoad",
+    name = "AnnoImport",
     handler = function(opts)
-      anno.load(opts.args)
+      local path = opts.args
+      if path == nil or path == "" then
+        path = vim.fn.input("Import annotations from file: ", "", "file")
+      end
+      if path == nil or path == "" then
+        return
+      end
+      anno.import(path)
     end,
-    opts = { desc = "Load annotations from file", nargs = 1, complete = "file" },
+    opts = { desc = "Import annotations from file", nargs = "?", complete = "file" },
   },
   {
-    name = "AnnoSave",
+    name = "AnnoOutput",
     handler = function(opts)
-      anno.save(opts.args)
+      local path = opts.args
+      if path == nil or path == "" then
+        path = vim.fn.input("Output annotations to file: ", "", "file")
+      end
+      if path == nil or path == "" then
+        return
+      end
+      anno.output(path)
     end,
-    opts = { desc = "Save annotations to file", nargs = 1, complete = "file" },
+    opts = { desc = "Output annotations to file", nargs = "?", complete = "file" },
   },
 }
 

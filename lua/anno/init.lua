@@ -472,21 +472,21 @@ function M.list()
   end
 end
 
---- Load annotations from a JSON file and append them to in-memory state.
+--- Import annotations from a JSON file and append them to in-memory state.
 ---
---- Canonical public API name: `load`.
+--- Canonical public API name: `import`.
 ---
 --- @param file_path string
-function M.load(file_path)
+function M.import(file_path)
   local path = vim.fn.expand(file_path)
   if vim.fn.filereadable(path) == 0 then
-    vim.notify(string.format("AnnoLoad: file not found: %s", file_path), vim.log.levels.ERROR)
+    vim.notify(string.format("AnnoImport: file not found: %s", file_path), vim.log.levels.ERROR)
     return
   end
 
   local entries, err = parse_anno_json(path)
   if not entries then
-    vim.notify("AnnoLoad parse error: " .. err, vim.log.levels.ERROR)
+    vim.notify("AnnoImport parse error: " .. err, vim.log.levels.ERROR)
     return
   end
 
@@ -525,18 +525,18 @@ function M.load(file_path)
   refresh_annotations_quickfix_if_open()
 
   if skipped > 0 then
-    vim.notify(string.format("Annotations loaded: %d (skipped: %d)", loaded, skipped), vim.log.levels.WARN)
+    vim.notify(string.format("Annotations imported: %d (skipped: %d)", loaded, skipped), vim.log.levels.WARN)
   else
-    vim.notify(string.format("Annotations loaded: %d", loaded), vim.log.levels.INFO)
+    vim.notify(string.format("Annotations imported: %d", loaded), vim.log.levels.INFO)
   end
 end
 
---- Save all live annotations into a JSON file.
+--- Output all live annotations into a JSON file.
 ---
---- Canonical public API name: `save`.
+--- Canonical public API name: `output`.
 ---
 --- @param file_path string
-function M.save(file_path)
+function M.output(file_path)
   local path = vim.fn.expand(file_path)
   local entries, missing = build_json_annotations()
   local payload = {
@@ -546,22 +546,23 @@ function M.save(file_path)
 
   local ok_encode, encoded = pcall(encode_json, payload)
   if not ok_encode then
-    vim.notify("AnnoSave error: failed to encode JSON", vim.log.levels.ERROR)
+    vim.notify("AnnoOutput error: failed to encode JSON", vim.log.levels.ERROR)
     return
   end
 
   local ok_write = pcall(vim.fn.writefile, { encoded }, path)
   if not ok_write then
-    vim.notify(string.format("AnnoSave error: cannot write file: %s", path), vim.log.levels.ERROR)
+    vim.notify(string.format("AnnoOutput error: cannot write file: %s", path), vim.log.levels.ERROR)
     return
   end
 
   if missing > 0 then
-    vim.notify(string.format("Annotations saved: %d (missing: %d)", #entries, missing), vim.log.levels.WARN)
+    vim.notify(string.format("Annotations output: %d (missing: %d)", #entries, missing), vim.log.levels.WARN)
   else
-    vim.notify(string.format("Annotations saved: %d", #entries), vim.log.levels.INFO)
+    vim.notify(string.format("Annotations output: %d", #entries), vim.log.levels.INFO)
   end
 end
+
 
 --- Update an existing annotation extmark in-place using current plugin display settings.
 ---

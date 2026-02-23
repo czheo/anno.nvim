@@ -35,7 +35,7 @@ describe("anno.nvim", function()
       text = "Refactor this",
     })
 
-    anno.save(out)
+    anno.output(out)
 
     local payload = vim.fn.json_decode(table.concat(vim.fn.readfile(out), "\n"))
     assert.are.same(1, payload.version)
@@ -66,7 +66,7 @@ describe("anno.nvim", function()
     }
     write_file(input, { vim.fn.json_encode(payload) })
 
-    anno.load(input)
+    anno.import(input)
 
     local bufnr = vim.fn.bufnr(vim.fn.fnamemodify(src, ":p"))
     assert.is_true(bufnr > 0)
