@@ -15,6 +15,9 @@ local state = require("anno.state")
 
 local M = {}
 
+-- Forward declaration: mutation commands call this before its implementation section.
+local refresh_annotations_quickfix_if_open
+
 --- Link the plugin highlight group to user-configurable highlight.
 ---
 --- @param use_default boolean If true, only define the link when AnnoText is not already set.
@@ -160,6 +163,7 @@ function M.add(opts)
 
   local path = vim.api.nvim_buf_get_name(bufnr)
   create_annotation(bufnr, path, line1, line2, text)
+  refresh_annotations_quickfix_if_open()
   vim.notify("Annotation added", vim.log.levels.INFO)
 end
 
@@ -389,21 +393,13 @@ local function build_json_annotations()
   return entries, missing
 end
 
-function M.remove_all()
-  clear_annotations(false)
-end
-
---- List live annotations in the quickfix list for cross-file navigation.
+--- Build quickfix entries in deterministic insertion order.
 ---
---- Canonical public API name: `list`.
-function M.list()
-  local rows, missing = collect_live_annotations()
-  if #rows == 0 then
-    vim.notify("No annotations", vim.log.levels.INFO)
-    return
-  end
-
+--- @return table items
+--- @return integer missing
+local function build_quickfix_items()
   local items = {}
+  local rows, missing = collect_live_annotations()
   for _, row in ipairs(rows) do
     local item = row.item
     local ctx = row.ctx
@@ -414,6 +410,43 @@ function M.list()
       col = 1,
       text = item.text .. suffix,
     })
+  end
+  return items, missing
+end
+
+--- Refresh the Annotations quickfix list when it is currently open.
+---
+--- We only touch the quickfix list if the visible quickfix window is the one created by
+--- :AnnoList, so we never clobber unrelated quickfix workflows.
+refresh_annotations_quickfix_if_open = function()
+  -- Request quickfix window metadata only:
+  -- - winid: non-zero means a quickfix window is currently open.
+  -- - title: lets us refresh only the list owned by :AnnoList.
+  local qf = vim.fn.getqflist({ winid = 1, title = 1 })
+  if not qf or qf.winid == 0 or qf.title ~= "Annotations" then
+    return
+  end
+
+  local items, _ = build_quickfix_items()
+  vim.fn.setqflist({}, "r", {
+    title = "Annotations",
+    items = items,
+  })
+end
+
+function M.remove_all()
+  clear_annotations(false)
+  refresh_annotations_quickfix_if_open()
+end
+
+--- List live annotations in the quickfix list for cross-file navigation.
+---
+--- Canonical public API name: `list`.
+function M.list()
+  local items, missing = build_quickfix_items()
+  if #items == 0 then
+    vim.notify("No annotations", vim.log.levels.INFO)
+    return
   end
 
   vim.fn.setqflist({}, "r", {
@@ -478,6 +511,8 @@ function M.load(file_path)
   if first_loaded_bufnr and vim.api.nvim_buf_is_valid(first_loaded_bufnr) then
     pcall(vim.cmd, "silent keepalt buffer " .. first_loaded_bufnr)
   end
+
+  refresh_annotations_quickfix_if_open()
 
   if skipped > 0 then
     vim.notify(string.format("Annotations loaded: %d (skipped: %d)", loaded, skipped), vim.log.levels.WARN)
@@ -578,6 +613,7 @@ function M.edit()
 
       item.text = text
       update_annotation_extmark(bufnr, item, ctx)
+      refresh_annotations_quickfix_if_open()
 
       vim.notify("Annotation edited", vim.log.levels.INFO)
       return
@@ -609,6 +645,7 @@ function M.remove()
       if #annos == 0 then
         state.annotations[bufnr] = nil
       end
+      refresh_annotations_quickfix_if_open()
       vim.notify("Annotation removed", vim.log.levels.INFO)
       return
     end
