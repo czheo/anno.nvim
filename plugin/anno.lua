@@ -116,6 +116,7 @@ local command_specs = {
     end,
     opts = { desc = "Set active annotation group", nargs = "?" },
   },
+
 }
 
 for _, spec in ipairs(command_specs) do

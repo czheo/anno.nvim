@@ -994,75 +994,144 @@ local function open_annotation_editor_float(initial_text, group_name, on_save)
 
 end
 
---- Edit an annotation anchored at the current cursor line.
+--- Find tracked annotation anchored at a specific buffer line.
 ---
---- Canonical public API name: `edit`.
-function M.edit()
-  local bufnr = vim.api.nvim_get_current_buf()
+--- @param bufnr integer
+--- @param line integer 1-based line
+--- @return table|nil item
+--- @return table|nil ctx
+--- @return integer|nil index
+local function find_annotation_at_line(bufnr, line)
   local annos = state.annotations[bufnr]
   if not annos or #annos == 0 then
-    vim.notify("No annotations in current buffer", vim.log.levels.INFO)
-    return
+    return nil, nil, nil
   end
-
-  local line = vim.api.nvim_win_get_cursor(0)[1]
 
   for i = #annos, 1, -1 do
     local item = annos[i]
     local ctx = get_extmark_range(bufnr, item.extmark_id)
     if ctx and ctx.start_line == line then
-      open_annotation_editor_float(item.text, item.group_name, function(new_text)
-        if new_text == "" or new_text == item.text then
-          return
-        end
+      return item, ctx, i
+    end
+  end
 
-        local fresh_ctx = get_extmark_range(bufnr, item.extmark_id)
-        if not fresh_ctx then
-          vim.notify("Annotation no longer exists", vim.log.levels.WARN)
-          return
-        end
+  return nil, nil, nil
+end
 
-        item.text = new_text
-        update_annotation_extmark(bufnr, item, fresh_ctx)
-        refresh_annotations_quickfix_if_open()
-        vim.notify("Annotation edited", vim.log.levels.INFO)
-      end)
+--- Resolve selected quickfix row into a tracked annotation.
+---
+--- We only operate on quickfix lists created by :AnnoList (title = "Annotations")
+--- to avoid mutating unrelated quickfix workflows.
+---
+--- @return integer|nil bufnr
+--- @return table|nil item
+--- @return table|nil ctx
+--- @return integer|nil index
+local function find_selected_qf_annotation()
+  local qf = vim.fn.getqflist({ title = 1, idx = 0, items = 1 })
+  if not qf or qf.title ~= "Annotations" then
+    vim.notify("Anno: current quickfix is not the Annotations list", vim.log.levels.WARN)
+    return nil, nil, nil, nil
+  end
+
+  local item = qf.items and qf.items[qf.idx]
+  if not item then
+    vim.notify("Anno: no quickfix item selected", vim.log.levels.INFO)
+    return nil, nil, nil, nil
+  end
+
+  local bufnr = item.bufnr
+  if (not bufnr or bufnr == 0) and item.filename and item.filename ~= "" then
+    bufnr = find_or_load_buffer(item.filename)
+  end
+  if not bufnr or bufnr == 0 then
+    vim.notify("Anno: quickfix item has no valid buffer", vim.log.levels.WARN)
+    return nil, nil, nil, nil
+  end
+
+  return bufnr, find_annotation_at_line(bufnr, item.lnum)
+end
+
+--- Edit an annotation anchored at the current cursor line.
+---
+--- Dual-mode behavior:
+--- - In normal file buffers, edits annotation at cursor line.
+--- - In quickfix buffers, edits selected entry from the Annotations quickfix list.
+---
+--- Canonical public API name: `edit`.
+function M.edit()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local item
+
+  if vim.bo[bufnr].buftype == "quickfix" then
+    local qf_bufnr
+    qf_bufnr, item = find_selected_qf_annotation()
+    if not qf_bufnr or not item then
+      return
+    end
+    bufnr = qf_bufnr
+  else
+    local line = vim.api.nvim_win_get_cursor(0)[1]
+    item = find_annotation_at_line(bufnr, line)
+    if not item then
+      vim.notify("No annotation found at cursor line", vim.log.levels.INFO)
       return
     end
   end
 
-  vim.notify("No annotation found at cursor line", vim.log.levels.INFO)
+  open_annotation_editor_float(item.text, item.group_name, function(new_text)
+    if new_text == "" or new_text == item.text then
+      return
+    end
+
+    local fresh_ctx = get_extmark_range(bufnr, item.extmark_id)
+    if not fresh_ctx then
+      vim.notify("Annotation no longer exists", vim.log.levels.WARN)
+      return
+    end
+
+    item.text = new_text
+    update_annotation_extmark(bufnr, item, fresh_ctx)
+    refresh_annotations_quickfix_if_open()
+    vim.notify("Annotation edited", vim.log.levels.INFO)
+  end)
 end
 
 --- Remove an annotation anchored at the current cursor line.
 ---
+--- Dual-mode behavior:
+--- - In normal file buffers, removes annotation at cursor line.
+--- - In quickfix buffers, removes selected entry from the Annotations quickfix list.
+---
 --- Canonical public API name: `remove`.
 function M.remove()
   local bufnr = vim.api.nvim_get_current_buf()
-  local annos = state.annotations[bufnr]
-  if not annos or #annos == 0 then
-    vim.notify("No annotations in current buffer", vim.log.levels.INFO)
-    return
-  end
+  local item
+  local index
 
-  local line = vim.api.nvim_win_get_cursor(0)[1]
-
-  for i = #annos, 1, -1 do
-    local item = annos[i]
-    local mark = vim.api.nvim_buf_get_extmark_by_id(bufnr, state.namespace_id, item.extmark_id, {})
-    if mark and mark[1] and (mark[1] + 1) == line then
-      vim.api.nvim_buf_del_extmark(bufnr, state.namespace_id, item.extmark_id)
-      table.remove(annos, i)
-      if #annos == 0 then
-        state.annotations[bufnr] = nil
-      end
-      refresh_annotations_quickfix_if_open()
-      vim.notify("Annotation removed", vim.log.levels.INFO)
+  if vim.bo[bufnr].buftype == "quickfix" then
+    local qf_bufnr
+    qf_bufnr, item, _, index = find_selected_qf_annotation()
+    if not qf_bufnr or not item or not index then
+      return
+    end
+    bufnr = qf_bufnr
+  else
+    local line = vim.api.nvim_win_get_cursor(0)[1]
+    item, _, index = find_annotation_at_line(bufnr, line)
+    if not item then
+      vim.notify("No annotation found at cursor line", vim.log.levels.INFO)
       return
     end
   end
 
-  vim.notify("No annotation found at cursor line", vim.log.levels.INFO)
+  vim.api.nvim_buf_del_extmark(bufnr, state.namespace_id, item.extmark_id)
+  table.remove(state.annotations[bufnr], index)
+  if #state.annotations[bufnr] == 0 then
+    state.annotations[bufnr] = nil
+  end
+  refresh_annotations_quickfix_if_open()
+  vim.notify("Annotation removed", vim.log.levels.INFO)
 end
 
 --- Jump to next/previous annotation line, wrapping around file boundaries.
