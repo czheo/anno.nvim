@@ -354,16 +354,37 @@ local function for_each_live_annotation(fn)
   return missing
 end
 
+--- Collect live annotations with deterministic global insertion ordering.
+---
+--- We keep storage keyed by buffer for efficient buffer-local commands, and derive a
+--- globally ordered view by sorting on `item.seq` when command output needs stable order.
+---
+--- @return table rows { { item = table, ctx = table }, ... }
+--- @return integer missing
+local function collect_live_annotations()
+  local rows = {}
+  local missing = for_each_live_annotation(function(item, ctx)
+    table.insert(rows, { item = item, ctx = ctx })
+  end)
+
+  table.sort(rows, function(a, b)
+    return a.item.seq < b.item.seq
+  end)
+
+  return rows, missing
+end
+
 local function build_json_annotations()
   local entries = {}
-  local missing = for_each_live_annotation(function(item, ctx)
+  local rows, missing = collect_live_annotations()
+  for _, row in ipairs(rows) do
     table.insert(entries, {
-      path = item.path,
-      start_line = ctx.start_line,
-      end_line = ctx.end_line,
-      text = item.text,
+      path = row.item.path,
+      start_line = row.ctx.start_line,
+      end_line = row.ctx.end_line,
+      text = row.item.text,
     })
-  end)
+  end
 
   return entries, missing
 end
@@ -376,8 +397,16 @@ end
 ---
 --- Canonical public API name: `list`.
 function M.list()
+  local rows, missing = collect_live_annotations()
+  if #rows == 0 then
+    vim.notify("No annotations", vim.log.levels.INFO)
+    return
+  end
+
   local items = {}
-  local missing = for_each_live_annotation(function(item, ctx)
+  for _, row in ipairs(rows) do
+    local item = row.item
+    local ctx = row.ctx
     local suffix = ctx.end_line > ctx.start_line and string.format(" [%d-%d]", ctx.start_line, ctx.end_line) or ""
     table.insert(items, {
       filename = item.path,
@@ -385,20 +414,7 @@ function M.list()
       col = 1,
       text = item.text .. suffix,
     })
-  end)
-
-  if #items == 0 then
-    vim.notify("No annotations", vim.log.levels.INFO)
-    return
   end
-
-  -- Stable ordering helps users scan annotations predictably across buffers.
-  table.sort(items, function(a, b)
-    if a.filename == b.filename then
-      return a.lnum < b.lnum
-    end
-    return a.filename < b.filename
-  end)
 
   vim.fn.setqflist({}, "r", {
     title = "Annotations",
@@ -677,16 +693,15 @@ end
 --- Format and copy annotations to the unnamed register.
 ---
 --- Ordering note:
---- - Output preserves insertion order within each buffer.
---- - Output is grouped by buffer; cross-buffer group order is intentionally undefined.
----
---- This mirrors how the plugin is used with coding agents: priority comments are often added
---- first, and per-file grouping keeps attention on one file at a time.
+--- - Output follows global annotation insertion order (`item.seq`) across all buffers.
 ---
 --- Canonical public API name: `yank`.
 function M.yank()
   local blocks = {}
-  local missing = for_each_live_annotation(function(item, ctx)
+  local rows, missing = collect_live_annotations()
+  for _, row in ipairs(rows) do
+    local item = row.item
+    local ctx = row.ctx
     local ft = vim.bo[ctx.bufnr].filetype
     local lines = vim.api.nvim_buf_get_lines(ctx.bufnr, ctx.start_line - 1, ctx.end_line, false)
     local code = table.concat(lines, "\n")
@@ -703,7 +718,7 @@ function M.yank()
     }
 
     table.insert(blocks, formatter(anno))
-  end)
+  end
 
   if #blocks == 0 then
     vim.notify("No annotations", vim.log.levels.INFO)

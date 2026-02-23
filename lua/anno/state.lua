@@ -3,7 +3,7 @@
 --- Keeping state in a separate module gives every command handler a single source of truth
 --- without threading large context objects through each public function call.
 local M = {
-  -- annotations[bufnr] = { { bufnr, extmark_id, path, text }, ... }
+  -- annotations[bufnr] = { { bufnr, extmark_id, path, text, seq }, ... }
   --
   -- Association invariant:
   -- - `item.extmark_id` is the extmark key inside `namespace_id` for the same `bufnr` bucket.
@@ -13,6 +13,8 @@ local M = {
   -- The string name is constant; this id is what all extmark APIs consume.
   namespace_id = vim.api.nvim_create_namespace("anno"),
   show_virtuals = true,
+  -- Monotonic insertion counter for deterministic global ordering.
+  next_seq = 1,
   config = {
     highlight = "Todo",
     prefix = "↳ ",
@@ -23,10 +25,19 @@ local M = {
 --- Track an annotation item under its buffer.
 ---
 --- Invariant: `item.extmark_id` points to an extmark in `M.namespace_id` for `bufnr`.
+--- Ordering invariant: every tracked item gets a strictly increasing `item.seq`.
 ---
 --- @param bufnr integer
 --- @param item table
 function M.add(bufnr, item)
+  if item.seq == nil then
+    item.seq = M.next_seq
+    M.next_seq = M.next_seq + 1
+  elseif item.seq >= M.next_seq then
+    -- Keep counter ahead when tests/manual state injection provide explicit seq values.
+    M.next_seq = item.seq + 1
+  end
+
   M.annotations[bufnr] = M.annotations[bufnr] or {}
   table.insert(M.annotations[bufnr], item)
 end
@@ -58,6 +69,7 @@ function M.reset(opts)
   end
 
   M.show_virtuals = true
+  M.next_seq = 1
   if not opts.keep_config then
     M.config.highlight = "Todo"
     M.config.prefix = "↳ "

@@ -185,4 +185,37 @@ describe("anno.nvim", function()
     assert.are.same(2, qf.items[2].lnum)
     assert.are.same("range [2-3]", qf.items[2].text)
   end)
+
+  it("lists annotations in global insertion order", function()
+    local src1 = vim.fn.tempname() .. ".lua"
+    local src2 = vim.fn.tempname() .. ".lua"
+    write_file(src1, { "a" })
+    write_file(src2, { "b" })
+
+    vim.cmd("edit " .. vim.fn.fnameescape(src2))
+    local bufnr2 = vim.api.nvim_get_current_buf()
+    local id2 = vim.api.nvim_buf_set_extmark(bufnr2, state.namespace_id, 0, 0, { end_row = 0, end_col = 0 })
+    state.add(bufnr2, {
+      bufnr = bufnr2,
+      extmark_id = id2,
+      path = vim.api.nvim_buf_get_name(bufnr2),
+      text = "second",
+    })
+
+    vim.cmd("edit " .. vim.fn.fnameescape(src1))
+    local bufnr1 = vim.api.nvim_get_current_buf()
+    local id1 = vim.api.nvim_buf_set_extmark(bufnr1, state.namespace_id, 0, 0, { end_row = 0, end_col = 0 })
+    state.add(bufnr1, {
+      bufnr = bufnr1,
+      extmark_id = id1,
+      path = vim.api.nvim_buf_get_name(bufnr1),
+      text = "third",
+    })
+
+    anno.list()
+
+    local qf = vim.fn.getqflist({ items = 1 })
+    assert.are.same("second", qf.items[1].text)
+    assert.are.same("third", qf.items[2].text)
+  end)
 end)
