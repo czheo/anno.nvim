@@ -439,10 +439,20 @@ function M.remove_all()
   refresh_annotations_quickfix_if_open()
 end
 
---- List live annotations in the quickfix list for cross-file navigation.
+--- Toggle annotation quickfix list visibility.
+---
+--- Behavior:
+--- - If the currently open quickfix window is the Annotations list, close it.
+--- - Otherwise, rebuild Annotations quickfix entries and open quickfix.
 ---
 --- Canonical public API name: `list`.
 function M.list()
+  local qf = vim.fn.getqflist({ winid = 1, title = 1 })
+  if qf and qf.winid ~= 0 and qf.title == "Annotations" then
+    vim.cmd("cclose")
+    return
+  end
+
   local items, missing = build_quickfix_items()
   if #items == 0 then
     vim.notify("No annotations", vim.log.levels.INFO)
