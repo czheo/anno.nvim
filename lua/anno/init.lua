@@ -600,6 +600,118 @@ function M.toggle()
   vim.notify("Annotations " .. status, vim.log.levels.INFO)
 end
 
+--- Open a temporary floating editor for multi-line annotation text.
+---
+--- Interaction model:
+--- - Window opens in Normal mode by default (users enter Insert mode manually).
+--- - Annotation text is loaded as-is, including embedded newlines.
+--- - Save keys (Normal mode): <CR>
+--- - Cancel keys (Normal mode): q, <Esc>
+---
+--- @param initial_text string
+--- @param on_save fun(new_text: string)
+local function open_annotation_editor_float(initial_text, on_save)
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.bo[buf].buftype = "nofile"
+  vim.bo[buf].bufhidden = "wipe"
+  vim.bo[buf].swapfile = false
+  vim.bo[buf].filetype = "markdown"
+
+  local lines = vim.split(initial_text or "", "\n", { plain = true })
+  if #lines == 0 then
+    lines = { "" }
+  end
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+
+  local function get_editor_size()
+    local ui = vim.api.nvim_list_uis()[1]
+    if ui then
+      return ui.width, ui.height
+    end
+    return vim.o.columns, vim.o.lines
+  end
+
+  -- Size policy:
+  -- - Width tracks ~75% of the editor so long lines are readable without dominating the UI.
+  -- - Height tracks ~60% and also respects current content length.
+  -- - Min/max clamps keep the window usable in tiny terminals and bounded in large ones.
+  local function calc_float_config()
+    local editor_width, editor_height = get_editor_size()
+
+    local min_width = 40
+    local max_width = math.max(min_width, editor_width - 4)
+    local target_width = math.floor(editor_width * 0.75)
+    local width = math.min(max_width, math.max(min_width, target_width))
+
+    local content_height = math.max(8, #lines + 2)
+    local min_height = 8
+    local max_height = math.max(min_height, editor_height - 4)
+    local target_height = math.floor(editor_height * 0.6)
+    local height = math.min(max_height, math.max(min_height, math.max(content_height, target_height)))
+
+    return {
+      relative = "editor",
+      style = "minimal",
+      border = "rounded",
+      width = width,
+      height = height,
+      row = math.max(0, math.floor((editor_height - height) / 2)),
+      col = math.max(0, math.floor((editor_width - width) / 2)),
+      title = " Annotation (Enter save, q/Esc cancel) ",
+      title_pos = "center",
+    }
+  end
+
+  local win = vim.api.nvim_open_win(buf, true, calc_float_config())
+
+  vim.wo[win].wrap = true
+  vim.wo[win].linebreak = true
+
+  -- Keep the float centered and proportionally sized while it is open.
+  -- This preserves the UX invariant that :AnnoEdit remains readable across terminal resizes.
+  local augroup = vim.api.nvim_create_augroup("AnnoFloatResize" .. win, { clear = true })
+  vim.api.nvim_create_autocmd("VimResized", {
+    group = augroup,
+    callback = function()
+      if vim.api.nvim_win_is_valid(win) then
+        vim.api.nvim_win_set_config(win, calc_float_config())
+      end
+    end,
+  })
+
+  local done = false
+  local function finish(save)
+    if done then
+      return
+    end
+    done = true
+
+    if save and vim.api.nvim_buf_is_valid(buf) then
+      local edited = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+      local text = table.concat(edited, "\n")
+      on_save(text)
+    end
+
+    -- Cleanup must always run so repeated :AnnoEdit calls do not leak resize autocmds.
+    pcall(vim.api.nvim_del_augroup_by_id, augroup)
+
+    if vim.api.nvim_win_is_valid(win) then
+      vim.api.nvim_win_close(win, true)
+    end
+  end
+
+  vim.keymap.set("n", "<CR>", function()
+    finish(true)
+  end, { buffer = buf, silent = true, nowait = true })
+  vim.keymap.set("n", "q", function()
+    finish(false)
+  end, { buffer = buf, silent = true })
+  vim.keymap.set("n", "<Esc>", function()
+    finish(false)
+  end, { buffer = buf, silent = true })
+
+end
+
 --- Edit an annotation anchored at the current cursor line.
 ---
 --- Canonical public API name: `edit`.
@@ -617,16 +729,22 @@ function M.edit()
     local item = annos[i]
     local ctx = get_extmark_range(bufnr, item.extmark_id)
     if ctx and ctx.start_line == line then
-      local text = vim.fn.input("Annotation: ", item.text)
-      if text == "" or text == item.text then
-        return
-      end
+      open_annotation_editor_float(item.text, function(new_text)
+        if new_text == "" or new_text == item.text then
+          return
+        end
 
-      item.text = text
-      update_annotation_extmark(bufnr, item, ctx)
-      refresh_annotations_quickfix_if_open()
+        local fresh_ctx = get_extmark_range(bufnr, item.extmark_id)
+        if not fresh_ctx then
+          vim.notify("Annotation no longer exists", vim.log.levels.WARN)
+          return
+        end
 
-      vim.notify("Annotation edited", vim.log.levels.INFO)
+        item.text = new_text
+        update_annotation_extmark(bufnr, item, fresh_ctx)
+        refresh_annotations_quickfix_if_open()
+        vim.notify("Annotation edited", vim.log.levels.INFO)
+      end)
       return
     end
   end
