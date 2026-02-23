@@ -368,6 +368,13 @@ function M.group(name, color)
   vim.notify(string.format("Active annotation group: %s", group_name), vim.log.levels.INFO)
 end
 
+--- Return active group used for new annotations.
+---
+--- @return string
+function M.get_active_group()
+  return state.active_group or "default"
+end
+
 --- Validate and normalize setup options.
 ---
 --- @param opts table

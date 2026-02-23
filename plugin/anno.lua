@@ -102,7 +102,8 @@ local command_specs = {
     handler = function(opts)
       local arg = opts.args
       if arg == nil or arg == "" then
-        arg = vim.fn.input("Group name: ")
+        local active_group = anno.get_active_group()
+        arg = vim.fn.input(string.format("Group name [%s]: ", active_group), active_group)
       end
       if arg == nil or arg == "" then
         return
