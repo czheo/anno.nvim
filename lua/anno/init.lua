@@ -488,6 +488,51 @@ function M.toggle()
   vim.notify("Annotations " .. status, vim.log.levels.INFO)
 end
 
+--- Edit an annotation anchored at the current cursor line.
+---
+--- Canonical public API name: `edit`.
+function M.edit()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local annos = state.annotations[bufnr]
+  if not annos or #annos == 0 then
+    vim.notify("No annotations in current buffer", vim.log.levels.INFO)
+    return
+  end
+
+  local line = vim.api.nvim_win_get_cursor(0)[1]
+
+  for i = #annos, 1, -1 do
+    local item = annos[i]
+    local ctx = get_extmark_range(bufnr, item.extmark_id)
+    if ctx and ctx.start_line == line then
+      local text = vim.fn.input("Annotation: ", item.text)
+      if text == "" or text == item.text then
+        return
+      end
+
+      item.text = text
+      vim.api.nvim_buf_set_extmark(
+        bufnr,
+        state.namespace,
+        ctx.row0,
+        ctx.col0,
+        {
+          id = item.extmark_id,
+          end_row = (ctx.end_row0 ~= nil) and ctx.end_row0 or (ctx.start_line - 1),
+          end_col = (ctx.end_col0 ~= nil) and ctx.end_col0 or 0,
+          virt_lines = state.show_virtuals and build_virt_lines(item.text, ctx.start_line, ctx.end_line) or {},
+          virt_lines_above = false,
+        }
+      )
+
+      vim.notify("Annotation edited", vim.log.levels.INFO)
+      return
+    end
+  end
+
+  vim.notify("No annotation found at cursor line", vim.log.levels.INFO)
+end
+
 --- Remove an annotation anchored at the current cursor line.
 ---
 --- Canonical public API name: `remove`.

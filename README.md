@@ -22,11 +22,12 @@ In Claude Code/Codex, you can
 ```lua
 {
   "czheo/anno.nvim",
-  cmd = { "AnnoAdd", "AnnoYank", "AnnoRemoveAll", "AnnoRemove", "AnnoToggle", "AnnoNext", "AnnoPrev", "AnnoLoad", "AnnoSave" },
+  cmd = { "AnnoAdd", "AnnoEdit", "AnnoYank", "AnnoRemoveAll", "AnnoRemove", "AnnoToggle", "AnnoNext", "AnnoPrev", "AnnoLoad", "AnnoSave" },
   keys = {
     { "<leader>a",  "",                       desc = "+annotations" },
     { "<leader>aa", "<cmd>AnnoAdd<cr>",       desc = "Add annotation" },
     { "<leader>a", ":AnnoAdd<cr>",            desc = "Add range annotation",  mode = "v" },
+    { "<leader>ae", "<cmd>AnnoEdit<cr>",      desc = "Edit annotation" },
     { "<leader>ad", "<cmd>AnnoRemove<cr>",    desc = "Delete annotation" },
     { "<leader>aj", "<cmd>AnnoNext<cr>",      desc = "Next annotation" },
     { "<leader>ak", "<cmd>AnnoPrev<cr>",      desc = "Previous annotation" },
@@ -42,6 +43,7 @@ In Claude Code/Codex, you can
 - `:AnnoAdd`
 - `:'<,'>AnnoAdd`
 - `:AnnoYank`
+- `:AnnoEdit`
 - `:AnnoRemove`
 - `:AnnoToggle`
 - `:AnnoNext`

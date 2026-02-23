@@ -28,6 +28,13 @@ local command_specs = {
     opts = { desc = "Remove all annotations" },
   },
   {
+    name = "AnnoEdit",
+    handler = function()
+      anno.edit()
+    end,
+    opts = { desc = "Edit annotation at cursor line" },
+  },
+  {
     name = "AnnoRemove",
     handler = function()
       anno.remove()
