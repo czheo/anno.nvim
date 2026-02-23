@@ -97,6 +97,25 @@ local command_specs = {
     end,
     opts = { desc = "Output annotations to file", nargs = "?", complete = "file" },
   },
+  {
+    name = "AnnoGroup",
+    handler = function(opts)
+      local arg = opts.args
+      if arg == nil or arg == "" then
+        arg = vim.fn.input("Group name: ")
+      end
+      if arg == nil or arg == "" then
+        return
+      end
+
+      local name, color = arg:match("^(%S+)%s+(%S+)$")
+      if not name then
+        name = arg
+      end
+      anno.group(name, color)
+    end,
+    opts = { desc = "Set active annotation group", nargs = "?" },
+  },
 }
 
 for _, spec in ipairs(command_specs) do

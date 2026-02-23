@@ -27,6 +27,168 @@ end
 
 set_highlight(true)
 
+local function sanitize_group_name(group_name)
+  return tostring(group_name or "default"):gsub("[^%w_]", "_")
+end
+
+local function group_hl_name(group_name)
+  return "AnnoTextGroup_" .. sanitize_group_name(group_name)
+end
+
+local function parse_hex_color(color)
+  if type(color) ~= "string" then
+    return nil
+  end
+  local hex = color:match("^#?([0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F])$")
+  if not hex then
+    return nil
+  end
+  return "#" .. string.lower(hex)
+end
+
+
+local function hsl_to_hex(h, s, l)
+  local c = (1 - math.abs(2 * l - 1)) * s
+  local x = c * (1 - math.abs((h / 60) % 2 - 1))
+  local m = l - c / 2
+  local r1, g1, b1 = 0, 0, 0
+
+  if h < 60 then
+    r1, g1, b1 = c, x, 0
+  elseif h < 120 then
+    r1, g1, b1 = x, c, 0
+  elseif h < 180 then
+    r1, g1, b1 = 0, c, x
+  elseif h < 240 then
+    r1, g1, b1 = 0, x, c
+  elseif h < 300 then
+    r1, g1, b1 = x, 0, c
+  else
+    r1, g1, b1 = c, 0, x
+  end
+
+  local r = math.floor((r1 + m) * 255 + 0.5)
+  local g = math.floor((g1 + m) * 255 + 0.5)
+  local b = math.floor((b1 + m) * 255 + 0.5)
+  return string.format("#%02x%02x%02x", r, g, b)
+end
+
+local function hash_group_name(group_name)
+  local hash = 0
+  for i = 1, #group_name do
+    hash = (hash * 131 + string.byte(group_name, i)) % 360
+  end
+  return hash
+end
+
+local GROUP_COLOR_BUCKETS = 16
+
+local function generate_group_color(group_name)
+  -- Deterministic bucketed generation: same group name -> same palette bucket.
+  -- Bucketing keeps colors visually separated better than unconstrained random hues.
+  local bucket = hash_group_name(group_name) % GROUP_COLOR_BUCKETS
+  local hue_step = 360 / GROUP_COLOR_BUCKETS
+  local hue = (17 + bucket * hue_step) % 360
+  local is_dark_bg = vim.o.background ~= "light"
+  local sat = is_dark_bg and 0.72 or 0.68
+  local light = is_dark_bg and 0.64 or 0.42
+  return hsl_to_hex(hue, sat, light)
+end
+
+local function ensure_group(group_name, color)
+  local normalized = state.ensure_group(group_name)
+  local group = state.groups[normalized]
+
+  -- Group color precedence:
+  -- 1) Explicit user color (import/command) wins.
+  -- 2) If explicit color is invalid, warn and fall back to generated color.
+  -- 3) Any group without color (including "default") gets a deterministic color from group name.
+  if color ~= nil then
+    local parsed = parse_hex_color(color)
+    if parsed ~= nil then
+      group.color = parsed
+    else
+      vim.notify(
+        string.format("AnnoGroup: invalid color for '%s' (expected #RRGGBB), using fallback", normalized),
+        vim.log.levels.WARN
+      )
+      if group.color == nil then
+        group.color = generate_group_color(normalized)
+      end
+    end
+  elseif group.color == nil then
+    group.color = generate_group_color(normalized)
+  end
+  return normalized
+end
+
+local function get_normal_fg()
+  local ok, normal = pcall(vim.api.nvim_get_hl, 0, { name = "Normal", link = true })
+  if not ok or type(normal) ~= "table" then
+    return nil
+  end
+  return normal.fg
+end
+
+local function hex_to_rgb(hex)
+  local parsed = parse_hex_color(hex)
+  if not parsed then
+    return nil
+  end
+  return tonumber(parsed:sub(2, 3), 16), tonumber(parsed:sub(4, 5), 16), tonumber(parsed:sub(6, 7), 16)
+end
+
+local function choose_bw_fg_for_bg(hex_bg)
+  local r, g, b = hex_to_rgb(hex_bg)
+  if not r then
+    return nil
+  end
+
+  -- Perceived luminance heuristic: choose black text on bright backgrounds,
+  -- white text on dark backgrounds.
+  local luminance = (0.299 * r) + (0.587 * g) + (0.114 * b)
+  if luminance > 150 then
+    return "#000000"
+  end
+  return "#ffffff"
+end
+
+local function ensure_group_highlight(group_name)
+  local normalized = ensure_group(group_name)
+  local hl_name = group_hl_name(normalized)
+  local group = state.groups[normalized]
+
+  if group and group.color then
+    -- `group.color` is treated as a background color to keep annotations visible in
+    -- themes where a custom foreground may blend into the editor background.
+    local fg = choose_bw_fg_for_bg(group.color)
+    if fg == nil then
+      fg = get_normal_fg()
+    end
+    vim.api.nvim_set_hl(0, hl_name, { bg = group.color, fg = fg })
+  else
+    vim.api.nvim_set_hl(0, hl_name, { link = "AnnoText" })
+  end
+  return hl_name
+end
+
+local function refresh_all_group_highlights()
+  -- Rebuild every group highlight from current theme state.
+  -- Required after setup() and :colorscheme because linked base groups may change.
+  set_highlight(false)
+  for group_name, _ in pairs(state.groups) do
+    ensure_group_highlight(group_name)
+  end
+end
+
+local colorscheme_augroup = vim.api.nvim_create_augroup("AnnoColors", { clear = true })
+vim.api.nvim_create_autocmd("ColorScheme", {
+  group = colorscheme_augroup,
+  callback = function()
+    refresh_all_group_highlights()
+  end,
+})
+
 --- Build a human-readable suffix shown for range annotations.
 ---
 --- @param start_line integer 1-based start line
@@ -44,10 +206,11 @@ end
 --- @param text string
 --- @param start_line integer 1-based start line
 --- @param end_line integer 1-based end line
+--- @param hl_group string
 --- @return table
-local function build_virt_lines(text, start_line, end_line)
+local function build_virt_lines(text, start_line, end_line, hl_group)
   local suffix = build_suffix(start_line, end_line)
-  return { { { state.config.prefix .. text .. suffix, "AnnoText" } } }
+  return { { { state.config.prefix .. text .. suffix, hl_group } } }
 end
 
 --- Default formatter used by :AnnoYank.
@@ -117,7 +280,11 @@ end
 --- @param start_line integer 1-based
 --- @param end_line integer 1-based
 --- @param text string
-local function create_annotation(bufnr, path, start_line, end_line, text)
+--- @param group_name string|nil
+local function create_annotation(bufnr, path, start_line, end_line, text, group_name)
+  local normalized_group = ensure_group(group_name or state.active_group)
+  local hl_group = ensure_group_highlight(normalized_group)
+
   local id = vim.api.nvim_buf_set_extmark(
     bufnr,
     state.namespace_id,
@@ -126,7 +293,7 @@ local function create_annotation(bufnr, path, start_line, end_line, text)
     {
       end_row = end_line - 1,
       end_col = 0,
-      virt_lines = state.show_virtuals and build_virt_lines(text, start_line, end_line) or {},
+      virt_lines = state.show_virtuals and build_virt_lines(text, start_line, end_line, hl_group) or {},
       virt_lines_above = false,
     }
   )
@@ -136,6 +303,7 @@ local function create_annotation(bufnr, path, start_line, end_line, text)
     extmark_id = id,
     path = path,
     text = text,
+    group_name = normalized_group,
   })
 end
 
@@ -156,7 +324,8 @@ function M.add(opts)
   local line2 = opts and opts.line2 or cursor_line
   line1, line2 = normalize_line_range(line1, line2)
 
-  local text = vim.fn.input("Annotation: ")
+  local active_group = state.active_group or "default"
+  local text = vim.fn.input(string.format("Annotation [%s]: ", active_group))
   if text == "" then
     return
   end
@@ -165,6 +334,24 @@ function M.add(opts)
   create_annotation(bufnr, path, line1, line2, text)
   refresh_annotations_quickfix_if_open()
   vim.notify("Annotation added", vim.log.levels.INFO)
+end
+
+--- Select the active group for new annotations.
+---
+--- @param name string
+--- @param color string|nil Optional #RRGGBB override
+function M.group(name, color)
+  -- Active group is a write-time selector: AnnoAdd stores new annotations under this group.
+  -- Existing annotations keep their own group_name metadata.
+  if type(name) ~= "string" or name == "" then
+    vim.notify("AnnoGroup: group name is required", vim.log.levels.ERROR)
+    return
+  end
+
+  local group_name = ensure_group(name, color)
+  state.active_group = group_name
+  ensure_group_highlight(group_name)
+  vim.notify(string.format("Active annotation group: %s", group_name), vim.log.levels.INFO)
 end
 
 --- Validate and normalize setup options.
@@ -201,8 +388,8 @@ function M.setup(opts)
   if normalized.yank_format ~= nil then
     state.config.yank_format = normalized.yank_format
   end
-  -- setup() should win over colorscheme defaults.
-  set_highlight(false)
+  -- setup() should win over colorscheme defaults and recompute group highlights.
+  refresh_all_group_highlights()
 end
 
 --- Remove all extmarks we track and reset annotation index.
@@ -254,14 +441,23 @@ local function encode_json(input)
   return vim.fn.json_encode(input)
 end
 
+
 local function is_positive_int(value)
   return type(value) == "number" and value >= 1 and value % 1 == 0
 end
 
---- Parse and validate annotation JSON payload.
+--- Parse and validate grouped annotation JSON payload.
+---
+--- Schema:
+--- {
+---   version = 1,
+---   groups = {
+---     { name = "...", color = "#RRGGBB"|nil, annotations = { ... } }
+---   }
+--- }
 ---
 --- @param path string
---- @return table|nil entries
+--- @return table|nil groups
 --- @return string|nil error_message
 local function parse_anno_json(path)
   local lines = vim.fn.readfile(path)
@@ -275,40 +471,66 @@ local function parse_anno_json(path)
     return nil, "Unsupported version (expected 1)"
   end
 
-  if type(data.annotations) ~= "table" then
-    return nil, "Missing or invalid annotations array"
+  if type(data.groups) ~= "table" then
+    return nil, "Missing or invalid groups array"
   end
 
-  local entries = {}
-  for i, entry in ipairs(data.annotations) do
-    if type(entry) ~= "table" then
-      return nil, string.format("annotations[%d] must be an object", i)
+  local groups = {}
+  for gi, group in ipairs(data.groups) do
+    if type(group) ~= "table" then
+      return nil, string.format("groups[%d] must be an object", gi)
     end
-    if type(entry.path) ~= "string" or entry.path == "" then
-      return nil, string.format("annotations[%d].path must be a non-empty string", i)
+    if type(group.name) ~= "string" or group.name == "" then
+      return nil, string.format("groups[%d].name must be a non-empty string", gi)
     end
-    if type(entry.text) ~= "string" then
-      return nil, string.format("annotations[%d].text must be a string", i)
+    local color = nil
+    if group.color ~= nil then
+      color = parse_hex_color(group.color)
+      if not color then
+        return nil, string.format("groups[%d].color must be #RRGGBB", gi)
+      end
     end
-    if not is_positive_int(entry.start_line) then
-      return nil, string.format("annotations[%d].start_line must be a positive integer", i)
-    end
-    if not is_positive_int(entry.end_line) then
-      return nil, string.format("annotations[%d].end_line must be a positive integer", i)
-    end
-    if entry.end_line < entry.start_line then
-      return nil, string.format("annotations[%d].end_line must be >= start_line", i)
+    if type(group.annotations) ~= "table" then
+      return nil, string.format("groups[%d].annotations must be an array", gi)
     end
 
-    table.insert(entries, {
-      path = entry.path,
-      start_line = entry.start_line,
-      end_line = entry.end_line,
-      text = entry.text,
+    local entries = {}
+    for ai, entry in ipairs(group.annotations) do
+      if type(entry) ~= "table" then
+        return nil, string.format("groups[%d].annotations[%d] must be an object", gi, ai)
+      end
+      if type(entry.path) ~= "string" or entry.path == "" then
+        return nil, string.format("groups[%d].annotations[%d].path must be a non-empty string", gi, ai)
+      end
+      if type(entry.text) ~= "string" then
+        return nil, string.format("groups[%d].annotations[%d].text must be a string", gi, ai)
+      end
+      if not is_positive_int(entry.start_line) then
+        return nil, string.format("groups[%d].annotations[%d].start_line must be a positive integer", gi, ai)
+      end
+      if not is_positive_int(entry.end_line) then
+        return nil, string.format("groups[%d].annotations[%d].end_line must be a positive integer", gi, ai)
+      end
+      if entry.end_line < entry.start_line then
+        return nil, string.format("groups[%d].annotations[%d].end_line must be >= start_line", gi, ai)
+      end
+
+      table.insert(entries, {
+        path = entry.path,
+        start_line = entry.start_line,
+        end_line = entry.end_line,
+        text = entry.text,
+      })
+    end
+
+    table.insert(groups, {
+      name = group.name,
+      color = color,
+      annotations = entries,
     })
   end
 
-  return entries, nil
+  return groups, nil
 end
 
 --- Iterate over tracked annotations and provide resolved extmark data.
@@ -378,11 +600,33 @@ local function collect_live_annotations()
   return rows, missing
 end
 
-local function build_json_annotations()
-  local entries = {}
+--- Build the canonical grouped JSON payload written by :AnnoOutput.
+---
+--- Shape:
+--- {
+---   version = 1,
+---   groups = {
+---     { name = string, color = "#RRGGBB"|nil, annotations = { ... } }
+---   }
+--- }
+---
+--- @return table payload
+--- @return integer missing_count
+local function build_grouped_json_payload()
+  local grouped = {}
   local rows, missing = collect_live_annotations()
+
   for _, row in ipairs(rows) do
-    table.insert(entries, {
+    local group_name = row.item.group_name or "default"
+    if grouped[group_name] == nil then
+      grouped[group_name] = {
+        name = group_name,
+        color = state.groups[group_name] and state.groups[group_name].color or nil,
+        annotations = {},
+      }
+    end
+
+    table.insert(grouped[group_name].annotations, {
       path = row.item.path,
       start_line = row.ctx.start_line,
       end_line = row.ctx.end_line,
@@ -390,7 +634,19 @@ local function build_json_annotations()
     })
   end
 
-  return entries, missing
+  local groups = {}
+  for _, group in pairs(grouped) do
+    table.insert(groups, group)
+  end
+
+  table.sort(groups, function(a, b)
+    return a.name < b.name
+  end)
+
+  return {
+    version = 1,
+    groups = groups,
+  }, missing
 end
 
 --- Build quickfix entries in deterministic insertion order.
@@ -404,11 +660,13 @@ local function build_quickfix_items()
     local item = row.item
     local ctx = row.ctx
     local suffix = ctx.end_line > ctx.start_line and string.format(" [%d-%d]", ctx.start_line, ctx.end_line) or ""
+    local group_name = item.group_name or "default"
+    local label = (group_name ~= "default") and ("[" .. group_name .. "] ") or ""
     table.insert(items, {
       filename = item.path,
       lnum = ctx.start_line,
       col = 1,
-      text = item.text .. suffix,
+      text = string.format("%s%s%s", label, item.text, suffix),
     })
   end
   return items, missing
@@ -484,8 +742,8 @@ function M.import(file_path)
     return
   end
 
-  local entries, err = parse_anno_json(path)
-  if not entries then
+  local groups, err = parse_anno_json(path)
+  if not groups then
     vim.notify("AnnoImport parse error: " .. err, vim.log.levels.ERROR)
     return
   end
@@ -493,33 +751,46 @@ function M.import(file_path)
   local loaded = 0
   local skipped = 0
   local first_loaded_bufnr = nil
+  local first_group_name = nil
 
-  for _, entry in ipairs(entries) do
-    local bufnr = find_or_load_buffer(entry.path)
-    if not bufnr then
-      skipped = skipped + 1
-    else
-      local line_count = vim.api.nvim_buf_line_count(bufnr)
-      if line_count <= 0 then
+  for _, group in ipairs(groups) do
+    local group_name = ensure_group(group.name, group.color)
+    if first_group_name == nil then
+      first_group_name = group_name
+    end
+    for _, entry in ipairs(group.annotations) do
+      local bufnr = find_or_load_buffer(entry.path)
+      if not bufnr then
         skipped = skipped + 1
       else
-        -- Clamp ranges so out-of-date JSON still loads safely for shorter files.
-        local start_line = math.max(1, math.min(entry.start_line, line_count))
-        local end_line = math.max(start_line, math.min(entry.end_line, line_count))
+        local line_count = vim.api.nvim_buf_line_count(bufnr)
+        if line_count <= 0 then
+          skipped = skipped + 1
+        else
+          -- Clamp ranges so out-of-date JSON still loads safely for shorter files.
+          local start_line = math.max(1, math.min(entry.start_line, line_count))
+          local end_line = math.max(start_line, math.min(entry.end_line, line_count))
 
-        vim.bo[bufnr].buflisted = true
-        create_annotation(bufnr, vim.api.nvim_buf_get_name(bufnr), start_line, end_line, entry.text)
+          vim.bo[bufnr].buflisted = true
+          create_annotation(bufnr, vim.api.nvim_buf_get_name(bufnr), start_line, end_line, entry.text, group_name)
 
-        if not first_loaded_bufnr then
-          first_loaded_bufnr = bufnr
+          if not first_loaded_bufnr then
+            first_loaded_bufnr = bufnr
+          end
+          loaded = loaded + 1
         end
-        loaded = loaded + 1
       end
     end
   end
 
   if first_loaded_bufnr and vim.api.nvim_buf_is_valid(first_loaded_bufnr) then
     pcall(vim.cmd, "silent keepalt buffer " .. first_loaded_bufnr)
+  end
+
+  -- After import, switch active group to the first imported group so add/edit prompts
+  -- reflect the imported context (including "default" when that is what the file defines).
+  if first_group_name ~= nil then
+    state.active_group = first_group_name
   end
 
   refresh_annotations_quickfix_if_open()
@@ -538,11 +809,7 @@ end
 --- @param file_path string
 function M.output(file_path)
   local path = vim.fn.expand(file_path)
-  local entries, missing = build_json_annotations()
-  local payload = {
-    version = 1,
-    annotations = entries,
-  }
+  local payload, missing = build_grouped_json_payload()
 
   local ok_encode, encoded = pcall(encode_json, payload)
   if not ok_encode then
@@ -550,16 +817,28 @@ function M.output(file_path)
     return
   end
 
-  local ok_write = pcall(vim.fn.writefile, { encoded }, path)
+  local output_lines = { encoded }
+  -- Keep builtin JSON encoding as the source of truth; pretty-print is best-effort only.
+  -- If jq exists and succeeds, we write human-friendly multi-line JSON.
+  -- If jq is missing/fails, we still emit valid compact JSON.
+  if vim.fn.executable("jq") == 1 then
+    local pretty = vim.fn.system({ "jq", "." }, encoded)
+    if vim.v.shell_error == 0 and type(pretty) == "string" and pretty ~= "" then
+      output_lines = vim.split(pretty, "\n", { plain = true })
+    end
+  end
+
+  local ok_write = pcall(vim.fn.writefile, output_lines, path)
   if not ok_write then
     vim.notify(string.format("AnnoOutput error: cannot write file: %s", path), vim.log.levels.ERROR)
     return
   end
 
+  local group_count = #payload.groups
   if missing > 0 then
-    vim.notify(string.format("Annotations output: %d (missing: %d)", #entries, missing), vim.log.levels.WARN)
+    vim.notify(string.format("Annotations output groups: %d (missing: %d)", group_count, missing), vim.log.levels.WARN)
   else
-    vim.notify(string.format("Annotations output: %d", #entries), vim.log.levels.INFO)
+    vim.notify(string.format("Annotations output groups: %d", group_count), vim.log.levels.INFO)
   end
 end
 
@@ -580,7 +859,9 @@ local function update_annotation_extmark(bufnr, item, ctx)
       -- Preserve explicit end coordinates when present; otherwise keep a single-line mark.
       end_row = (ctx.end_row0 ~= nil) and ctx.end_row0 or (ctx.start_line - 1),
       end_col = (ctx.end_col0 ~= nil) and ctx.end_col0 or 0,
-      virt_lines = state.show_virtuals and build_virt_lines(item.text, ctx.start_line, ctx.end_line) or {},
+      virt_lines = state.show_virtuals
+        and build_virt_lines(item.text, ctx.start_line, ctx.end_line, ensure_group_highlight(item.group_name))
+        or {},
       virt_lines_above = false,
     }
   )
@@ -609,8 +890,9 @@ end
 --- - Cancel keys (Normal mode): q, <Esc>
 ---
 --- @param initial_text string
+--- @param group_name string|nil
 --- @param on_save fun(new_text: string)
-local function open_annotation_editor_float(initial_text, on_save)
+local function open_annotation_editor_float(initial_text, group_name, on_save)
   local buf = vim.api.nvim_create_buf(false, true)
   vim.bo[buf].buftype = "nofile"
   vim.bo[buf].bufhidden = "wipe"
@@ -657,7 +939,7 @@ local function open_annotation_editor_float(initial_text, on_save)
       height = height,
       row = math.max(0, math.floor((editor_height - height) / 2)),
       col = math.max(0, math.floor((editor_width - width) / 2)),
-      title = " Annotation (Enter save, q/Esc cancel) ",
+      title = string.format(" Annotation [%s] (Enter save, q/Esc cancel) ", group_name or "default"),
       title_pos = "center",
     }
   end
@@ -729,7 +1011,7 @@ function M.edit()
     local item = annos[i]
     local ctx = get_extmark_range(bufnr, item.extmark_id)
     if ctx and ctx.start_line == line then
-      open_annotation_editor_float(item.text, function(new_text)
+      open_annotation_editor_float(item.text, item.group_name, function(new_text)
         if new_text == "" or new_text == item.text then
           return
         end

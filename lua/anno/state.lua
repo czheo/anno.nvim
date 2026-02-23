@@ -3,7 +3,7 @@
 --- Keeping state in a separate module gives every command handler a single source of truth
 --- without threading large context objects through each public function call.
 local M = {
-  -- annotations[bufnr] = { { bufnr, extmark_id, path, text, seq }, ... }
+  -- annotations[bufnr] = { { bufnr, extmark_id, path, text, seq, group_name }, ... }
   --
   -- Association invariant:
   -- - `item.extmark_id` is the extmark key inside `namespace_id` for the same `bufnr` bucket.
@@ -15,6 +15,12 @@ local M = {
   show_virtuals = true,
   -- Monotonic insertion counter for deterministic global ordering.
   next_seq = 1,
+  -- Active group used by AnnoAdd.
+  active_group = "default",
+  -- groups[name] = { color = "#RRGGBB"|nil }
+  groups = {
+    default = { color = nil },
+  },
   config = {
     highlight = "Todo",
     prefix = "↳ ",
@@ -29,6 +35,17 @@ local M = {
 ---
 --- @param bufnr integer
 --- @param item table
+function M.ensure_group(name)
+  local group_name = name
+  if type(group_name) ~= "string" or group_name == "" then
+    group_name = "default"
+  end
+  if M.groups[group_name] == nil then
+    M.groups[group_name] = { color = nil }
+  end
+  return group_name
+end
+
 function M.add(bufnr, item)
   if item.seq == nil then
     item.seq = M.next_seq
@@ -37,6 +54,8 @@ function M.add(bufnr, item)
     -- Keep counter ahead when tests/manual state injection provide explicit seq values.
     M.next_seq = item.seq + 1
   end
+
+  item.group_name = M.ensure_group(item.group_name)
 
   M.annotations[bufnr] = M.annotations[bufnr] or {}
   table.insert(M.annotations[bufnr], item)
@@ -70,6 +89,10 @@ function M.reset(opts)
 
   M.show_virtuals = true
   M.next_seq = 1
+  M.active_group = "default"
+  M.groups = {
+    default = { color = nil },
+  }
   if not opts.keep_config then
     M.config.highlight = "Todo"
     M.config.prefix = "↳ "

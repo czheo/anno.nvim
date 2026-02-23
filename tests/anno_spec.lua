@@ -15,7 +15,7 @@ describe("anno.nvim", function()
     reset_state()
   end)
 
-  it("saves annotation ranges to JSON", function()
+  it("saves grouped annotation ranges to JSON", function()
     local src = vim.fn.tempname() .. ".lua"
     local out = vim.fn.tempname() .. ".json"
     write_file(src, { "line1", "line2", "line3" })
@@ -33,34 +33,43 @@ describe("anno.nvim", function()
       extmark_id = id,
       path = path,
       text = "Refactor this",
+      group_name = "default",
     })
 
     anno.output(out)
 
     local payload = vim.fn.json_decode(table.concat(vim.fn.readfile(out), "\n"))
     assert.are.same(1, payload.version)
-    assert.are.same(1, #payload.annotations)
+    assert.are.same(1, #payload.groups)
+    assert.are.same("default", payload.groups[1].name)
+    assert.are.same(1, #payload.groups[1].annotations)
 
-    local entry = payload.annotations[1]
+    local entry = payload.groups[1].annotations[1]
     assert.are.same(path, entry.path)
     assert.are.same(1, entry.start_line)
     assert.are.same(2, entry.end_line)
     assert.are.same("Refactor this", entry.text)
   end)
 
-  it("loads annotations and clamps line range to buffer size", function()
+  it("loads grouped annotations and clamps line range to buffer size", function()
     local src = vim.fn.tempname() .. ".lua"
     local input = vim.fn.tempname() .. ".json"
     write_file(src, { "a", "b", "c" })
 
     local payload = {
       version = 1,
-      annotations = {
+      groups = {
         {
-          path = src,
-          start_line = 2,
-          end_line = 999,
-          text = "Check this block",
+          name = "review",
+          color = "#ff8800",
+          annotations = {
+            {
+              path = src,
+              start_line = 2,
+              end_line = 999,
+              text = "Check this block",
+            },
+          },
         },
       },
     }
@@ -76,6 +85,8 @@ describe("anno.nvim", function()
     local item = state.annotations[bufnr][1]
     local mark = vim.api.nvim_buf_get_extmark_by_id(bufnr, state.namespace_id, item.extmark_id, { details = true })
 
+    assert.are.same("review", item.group_name)
+    assert.are.same("#ff8800", state.groups.review.color)
     assert.are.same("Check this block", item.text)
     assert.are.same(1, mark[1]) -- start line 2 (0-based)
     assert.are.same(2, mark[3].end_row) -- clamped to line 3 (0-based)

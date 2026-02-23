@@ -22,7 +22,7 @@ In Claude Code/Codex, you can
 ```lua
 {
   "czheo/anno.nvim",
-  cmd = { "AnnoAdd", "AnnoEdit", "AnnoYank", "AnnoList", "AnnoRemoveAll", "AnnoRemove", "AnnoToggle", "AnnoNext", "AnnoPrev", "AnnoImport", "AnnoOutput" },
+  cmd = { "AnnoAdd", "AnnoEdit", "AnnoYank", "AnnoList", "AnnoRemoveAll", "AnnoRemove", "AnnoToggle", "AnnoNext", "AnnoPrev", "AnnoImport", "AnnoOutput", "AnnoGroup" },
   keys = {
     { "<leader>a",  "",                       desc = "+annotations" },
     { "<leader>aa", "<cmd>AnnoAdd<cr>",       desc = "Add annotation" },
@@ -55,20 +55,27 @@ In Claude Code/Codex, you can
 - `:AnnoRemoveAll`
 - `:AnnoImport {file}`
 - `:AnnoOutput {file}`
+- `:AnnoGroup {name} [#RRGGBB]`
 
 `AnnoImport` appends to existing annotations. Use `:AnnoRemoveAll` first if you want to replace all.
 
-`AnnoImport`/`AnnoOutput` use JSON:
+`AnnoImport`/`AnnoOutput` use grouped JSON:
 
 ```json
 {
   "version": 1,
-  "annotations": [
+  "groups": [
     {
-      "path": "/abs/path/to/file.lua",
-      "start_line": 12,
-      "end_line": 14,
-      "text": "Refactor this block"
+      "name": "default",
+      "color": "#ffff00",
+      "annotations": [
+        {
+          "path": "/abs/path/to/file.lua",
+          "start_line": 12,
+          "end_line": 14,
+          "text": "Refactor this block"
+        }
+      ]
     }
   ]
 }
