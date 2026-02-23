@@ -1,7 +1,7 @@
 --- anno.nvim core module.
 ---
 --- Architecture overview:
---- - Each annotation is represented by one extmark in `state.namespace`.
+--- - Each annotation is represented by one extmark in `state.namespace_id`.
 --- - `state.annotations[bufnr]` stores plugin metadata for every extmark we create.
 --- - The extmark position/range remains source-of-truth for line numbers; metadata stores
 ---   user text and file path used for yanking and JSON serialization.
@@ -88,7 +88,7 @@ end
 --- @param extmark_id integer
 --- @return table|nil { row0, col0, start_line, end_line, end_row0, end_col0 }
 local function get_extmark_range(bufnr, extmark_id)
-  local mark = vim.api.nvim_buf_get_extmark_by_id(bufnr, state.namespace, extmark_id, { details = true })
+  local mark = vim.api.nvim_buf_get_extmark_by_id(bufnr, state.namespace_id, extmark_id, { details = true })
   if not (mark and mark[1] ~= nil) then
     return nil
   end
@@ -117,7 +117,7 @@ end
 local function create_annotation(bufnr, path, start_line, end_line, text)
   local id = vim.api.nvim_buf_set_extmark(
     bufnr,
-    state.namespace,
+    state.namespace_id,
     start_line - 1,
     0,
     {
@@ -469,7 +469,7 @@ end
 local function update_annotation_extmark(bufnr, item, ctx)
   vim.api.nvim_buf_set_extmark(
     bufnr,
-    state.namespace,
+    state.namespace_id,
     ctx.row0,
     ctx.col0,
     {
@@ -545,9 +545,9 @@ function M.remove()
 
   for i = #annos, 1, -1 do
     local item = annos[i]
-    local mark = vim.api.nvim_buf_get_extmark_by_id(bufnr, state.namespace, item.extmark_id, {})
+    local mark = vim.api.nvim_buf_get_extmark_by_id(bufnr, state.namespace_id, item.extmark_id, {})
     if mark and mark[1] and (mark[1] + 1) == line then
-      vim.api.nvim_buf_del_extmark(bufnr, state.namespace, item.extmark_id)
+      vim.api.nvim_buf_del_extmark(bufnr, state.namespace_id, item.extmark_id)
       table.remove(annos, i)
       if #annos == 0 then
         state.annotations[bufnr] = nil
@@ -576,7 +576,7 @@ local function jump_to_annotation(forward)
   local seen = {}
 
   for _, item in ipairs(annos) do
-    local mark = vim.api.nvim_buf_get_extmark_by_id(bufnr, state.namespace, item.extmark_id, {})
+    local mark = vim.api.nvim_buf_get_extmark_by_id(bufnr, state.namespace_id, item.extmark_id, {})
     if mark and mark[1] then
       local line = mark[1] + 1
       if not seen[line] then

@@ -4,8 +4,14 @@
 --- without threading large context objects through each public function call.
 local M = {
   -- annotations[bufnr] = { { bufnr, extmark_id, path, text }, ... }
+  --
+  -- Association invariant:
+  -- - `item.extmark_id` is the extmark key inside `namespace_id` for the same `bufnr` bucket.
+  -- - The tuple (bufnr, namespace_id, item.extmark_id) uniquely identifies one live extmark.
   annotations = {},
-  namespace = vim.api.nvim_create_namespace("anno"),
+  -- Numeric id returned by `nvim_create_namespace("anno")`.
+  -- The string name is constant; this id is what all extmark APIs consume.
+  namespace_id = vim.api.nvim_create_namespace("anno"),
   show_virtuals = true,
   config = {
     highlight = "Todo",
@@ -16,7 +22,7 @@ local M = {
 
 --- Track an annotation item under its buffer.
 ---
---- Invariant: `item.extmark_id` points to an extmark in `M.namespace` for `bufnr`.
+--- Invariant: `item.extmark_id` points to an extmark in `M.namespace_id` for `bufnr`.
 ---
 --- @param bufnr integer
 --- @param item table
@@ -36,7 +42,7 @@ function M.clear_buffer_annotations(bufnr)
     return
   end
 
-  vim.api.nvim_buf_clear_namespace(bufnr, M.namespace, 0, -1)
+  vim.api.nvim_buf_clear_namespace(bufnr, M.namespace_id, 0, -1)
   M.annotations[bufnr] = nil
 end
 

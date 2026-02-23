@@ -24,7 +24,7 @@ describe("anno.nvim", function()
     local bufnr = vim.api.nvim_get_current_buf()
     local path = vim.api.nvim_buf_get_name(bufnr)
 
-    local id = vim.api.nvim_buf_set_extmark(bufnr, state.namespace, 0, 0, {
+    local id = vim.api.nvim_buf_set_extmark(bufnr, state.namespace_id, 0, 0, {
       end_row = 1,
       end_col = 0,
     })
@@ -74,7 +74,7 @@ describe("anno.nvim", function()
     assert.are.same(1, #state.annotations[bufnr])
 
     local item = state.annotations[bufnr][1]
-    local mark = vim.api.nvim_buf_get_extmark_by_id(bufnr, state.namespace, item.extmark_id, { details = true })
+    local mark = vim.api.nvim_buf_get_extmark_by_id(bufnr, state.namespace_id, item.extmark_id, { details = true })
 
     assert.are.same("Check this block", item.text)
     assert.are.same(1, mark[1]) -- start line 2 (0-based)
@@ -87,7 +87,7 @@ describe("anno.nvim", function()
     vim.cmd("edit " .. vim.fn.fnameescape(src))
 
     local bufnr = vim.api.nvim_get_current_buf()
-    local id = vim.api.nvim_buf_set_extmark(bufnr, state.namespace, 0, 0, { end_row = 0, end_col = 0 })
+    local id = vim.api.nvim_buf_set_extmark(bufnr, state.namespace_id, 0, 0, { end_row = 0, end_col = 0 })
     state.add(bufnr, {
       bufnr = bufnr,
       extmark_id = id,
@@ -120,7 +120,7 @@ describe("anno.nvim", function()
     vim.cmd("edit " .. vim.fn.fnameescape(src))
 
     local bufnr = vim.api.nvim_get_current_buf()
-    local id = vim.api.nvim_buf_set_extmark(bufnr, state.namespace, 0, 0, {
+    local id = vim.api.nvim_buf_set_extmark(bufnr, state.namespace_id, 0, 0, {
       end_row = 1,
       end_col = 0,
     })
